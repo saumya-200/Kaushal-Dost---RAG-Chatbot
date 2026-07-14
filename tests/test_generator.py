@@ -21,8 +21,9 @@ def test_format_context():
     assert "Content of Doc 1" in formatted
     assert "Content of Doc 3" in formatted
 
-@patch("httpx.post")
-def test_generate_answer_success(mock_post):
+@pytest.mark.asyncio
+@patch("httpx.AsyncClient.post")
+async def test_generate_answer_success(mock_post):
     # Mock successful response from Ollama
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -31,12 +32,15 @@ def test_generate_answer_success(mock_post):
             "content": "This is the generated response from Qwen."
         }
     }
-    mock_post.return_value = mock_response
+    # An async mock for the awaitable return value of post
+    async def mock_post_coro(*args, **kwargs):
+        return mock_response
+    mock_post.side_effect = mock_post_coro
 
     generator = LLMGenerator()
     chunks = [{"title": "Doc1", "text": "Some context info."}]
     
-    response = generator.generate_answer("What is the registration process?", chunks)
+    response = await generator.generate_answer("What is the registration process?", chunks)
     
     assert response == "This is the generated response from Qwen."
     mock_post.assert_called_once()
@@ -49,14 +53,17 @@ def test_generate_answer_success(mock_post):
     assert payload["options"]["temperature"] == 0.1
     assert len(payload["messages"]) == 2  # system + user prompt
 
-@patch("httpx.post")
-def test_generate_answer_with_history(mock_post):
+@pytest.mark.asyncio
+@patch("httpx.AsyncClient.post")
+async def test_generate_answer_with_history(mock_post):
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "message": {"content": "Follow-up answer."}
     }
-    mock_post.return_value = mock_response
+    async def mock_post_coro(*args, **kwargs):
+        return mock_response
+    mock_post.side_effect = mock_post_coro
 
     generator = LLMGenerator()
     chunks = [{"title": "Doc1", "text": "Some context info."}]
@@ -65,7 +72,7 @@ def test_generate_answer_with_history(mock_post):
         {"query": "What is UPSDM?", "answer": "UPSDM is Uttar Pradesh Skill Development Mission."}
     ]
     
-    response = generator.generate_answer("How to apply?", chunks, history=history)
+    response = await generator.generate_answer("How to apply?", chunks, history=history)
     
     assert response == "Follow-up answer."
     
@@ -87,10 +94,13 @@ def test_generate_answer_with_history(mock_post):
     assert messages[5]["role"] == "user"
     assert "How to apply?" in messages[5]["content"]
 
-@patch("httpx.post")
-def test_generate_answer_failure_fallback(mock_post):
+@pytest.mark.asyncio
+@patch("httpx.AsyncClient.post")
+async def test_generate_answer_failure_fallback(mock_post):
     # Mock Ollama post failing
-    mock_post.side_effect = Exception("Connection refused")
+    async def mock_post_coro(*args, **kwargs):
+        raise Exception("Connection refused")
+    mock_post.side_effect = mock_post_coro
 
     generator = LLMGenerator()
     chunks = [
@@ -99,7 +109,7 @@ def test_generate_answer_failure_fallback(mock_post):
     ]
     
     # It should fail primary call, then fail fallback model call, and then return hard fallback response
-    response = generator.generate_answer("What is the process?", chunks)
+    response = await generator.generate_answer("What is the process?", chunks)
     
     assert "[Draft RAG Response]" in response
     assert "This is primary context for UPSDM registration." in response

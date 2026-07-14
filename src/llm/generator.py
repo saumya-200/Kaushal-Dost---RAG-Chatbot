@@ -1,6 +1,8 @@
 import logging
 import httpx
 import time
+import asyncio
+from fastapi import HTTPException
 from src.config import load_config
 
 logger = logging.getLogger(__name__)
@@ -12,6 +14,13 @@ class LLMGenerator:
         self.primary_model = self.config.llm_config.get("primary_model", "qwen3:4b")
         self.fallback_model = self.config.llm_config.get("fallback_model", "qwen3:1.7b")
         self.timeout = float(self.config.llm_config.get("timeout_seconds", 180))
+        
+        # Concurrency settings
+        max_concurrent = int(self.config.llm_config.get("max_concurrent", 4))
+        self.queue_size = int(self.config.llm_config.get("queue_size", 100))
+        self.semaphore = asyncio.Semaphore(max_concurrent)
+        self.current_waiters = 0
+        self.waiters_lock = asyncio.Lock()
 
     def _format_context(self, chunks: list[dict]) -> str:
         """Formats retrieved FAISS chunks into a single context string."""
@@ -26,11 +35,38 @@ class LLMGenerator:
             
         return "\n\n".join(context_parts)
 
-    def generate_answer(self, query: str, chunks: list[dict], history: list[dict] = None, use_fallback_model: bool = False) -> str:
+    async def generate_answer(self, query: str, chunks: list[dict], history: list[dict] = None, use_fallback_model: bool = False) -> str:
         """
-        Generates a grounded response based on context chunks and conversation history.
-        history format: list of dicts with keys 'query' and 'answer'.
+        Wrapper to enforce concurrency limits and queuing on primary generations.
+        Recursive fallback model runs skip queue check to run in the same task context.
         """
+        if not use_fallback_model:
+            async with self.waiters_lock:
+                if self.current_waiters >= self.queue_size:
+                    logger.warning(f"Queue limit reached ({self.current_waiters}/{self.queue_size}). Rejecting request.")
+                    raise HTTPException(
+                        status_code=503, 
+                        detail="Service busy. Concurrency queue limit reached."
+                    )
+                self.current_waiters += 1
+
+            decremented = False
+            try:
+                # Wait for slot
+                async with self.semaphore:
+                    async with self.waiters_lock:
+                        self.current_waiters -= 1
+                    decremented = True
+                    return await self._execute_generation(query, chunks, history, use_fallback_model)
+            finally:
+                if not decremented:
+                    async with self.waiters_lock:
+                        self.current_waiters -= 1
+        else:
+            return await self._execute_generation(query, chunks, history, use_fallback_model)
+
+    async def _execute_generation(self, query: str, chunks: list[dict], history: list[dict], use_fallback_model: bool) -> str:
+        """Executes LLM generation asynchronously."""
         # Format the context chunks
         context_text = self._format_context(chunks)
         
@@ -78,7 +114,8 @@ class LLMGenerator:
         t0 = time.time()
         try:
             logger.info(f"Sending request to Ollama model '{model}' with timeout {self.timeout}s...")
-            r = httpx.post(self.ollama_url, json=payload, timeout=self.timeout)
+            async with httpx.AsyncClient() as client:
+                r = await client.post(self.ollama_url, json=payload, timeout=self.timeout)
             
             if r.status_code == 200:
                 result = r.json()
@@ -97,9 +134,8 @@ class LLMGenerator:
             
         # Fallback handling
         if not use_fallback_model:
-            # If primary failed, we can optionally try the fallback model (qwen3:1.7b)
             logger.info("Attempting backup generation using fallback model...")
-            return self.generate_answer(query, chunks, history, use_fallback_model=True)
+            return await self.generate_answer(query, chunks, history, use_fallback_model=True)
             
         # Hard fallback response based on the top context chunk
         if chunks:

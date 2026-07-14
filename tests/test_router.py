@@ -37,21 +37,23 @@ def test_greeting_detection(router):
     assert not router.is_greeting("what is upsdm")
     assert not router.is_greeting("how to register for courses")
 
-def test_greeting_routing(router):
-    stage, response, meta = router.route("hello")
+@pytest.mark.asyncio
+async def test_greeting_routing(router):
+    stage, response, meta = await router.route("hello")
     assert stage == "greeting"
     assert "Kaushal Dost" in response
     assert meta["detected_language"] == "en"
     
-    stage_hi, response_hi, meta_hi = router.route("नमस्ते")
+    stage_hi, response_hi, meta_hi = await router.route("नमस्ते")
     assert stage_hi == "greeting"
     assert "नमस्ते" in response_hi or "सहायक" in response_hi
     assert meta_hi["detected_language"] == "hi"
 
-def test_fallback_routing(router):
+@pytest.mark.asyncio
+async def test_fallback_routing(router):
     # Mock FAISS to return no results
     with patch.object(router.faiss_index, 'search', return_value=[]):
-        stage, response, meta = router.route("random gibberish queries that return nothing")
+        stage, response, meta = await router.route("random gibberish queries that return nothing")
         assert stage == "fallback"
         assert "helpline" in response
         assert meta["detected_language"] == "en"
@@ -87,7 +89,8 @@ def test_semantic_cache_flow(router, redis_client):
     assert cached_p == response
     assert matched_p == query
 
-def test_confidence_threshold_routing(router):
+@pytest.mark.asyncio
+async def test_confidence_threshold_routing(router):
     # Mock FAISS search to return a mock chunk with high score
     high_score_chunk = {
         "chunk_id": "test_chunk_001",
@@ -102,7 +105,7 @@ def test_confidence_threshold_routing(router):
     router.cached_embeddings = []
     
     with patch.object(router.faiss_index, 'search', return_value=[high_score_chunk]):
-        stage, response, meta = router.route("where is the direct chunk")
+        stage, response, meta = await router.route("where is the direct chunk")
         assert stage == "faiss_direct"
         assert response == "Direct direct direct direct direct direct."
         assert meta["top_score"] == 0.95
@@ -118,8 +121,11 @@ def test_confidence_threshold_routing(router):
     
     with patch.object(router.faiss_index, 'search', return_value=[med_score_chunk]):
         # Mock LLM API call to avoid making a real external request in tests
-        with patch.object(router.generator, 'generate_answer', return_value="Synthesized LLM Response"):
-            stage, response, meta = router.route("synthesis prompt details")
+        async def mock_generate_answer(*args, **kwargs):
+            return "Synthesized LLM Response"
+            
+        with patch.object(router.generator, 'generate_answer', side_effect=mock_generate_answer):
+            stage, response, meta = await router.route("synthesis prompt details")
             assert stage == "llm"
             assert response == "Synthesized LLM Response"
             assert meta["top_score"] == 0.78
@@ -134,6 +140,6 @@ def test_confidence_threshold_routing(router):
     }
     
     with patch.object(router.faiss_index, 'search', return_value=[low_score_chunk]):
-        stage, response, meta = router.route("completely irrelevant queries")
+        stage, response, meta = await router.route("completely irrelevant queries")
         assert stage == "fallback"
         assert "helpline" in response

@@ -192,7 +192,7 @@ class Router:
         except Exception as e:
             logger.error(f"Error adding to Redis semantic cache: {e}")
 
-    def route(self, query: str, history: list[dict] = None) -> tuple[str, str, dict]:
+    async def route(self, query: str, history: list[dict] = None) -> tuple[str, str, dict]:
         """
         Routes the user query through the multi-stage pipeline.
         Returns: (stage_used, answer, metadata)
@@ -242,7 +242,7 @@ class Router:
         # Route to LLM (Medium Confidence)
         elif score >= med_thresh:
             # LLM prompt and generation (Phase 5).
-            response = self.generator.generate_answer(query, results, history)
+            response = await self.generator.generate_answer(query, results, history)
             self.add_to_cache(query, q_emb, response, "llm")
             return "llm", response, metadata
             
