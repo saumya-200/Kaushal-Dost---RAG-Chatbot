@@ -23,55 +23,74 @@ class Chunker:
         # Basic normalization
         text = re.sub(r'\n{3,}', '\n\n', text)
         
-        # Split into approximate "sentences" 
-        # Hindi uses | (purna viram) or . for sentence endings
-        sentences = re.split(r'(?<=[.।!?])\s+', text)
-        
         chunks = []
-        current_chunk_words = []
-        current_word_count = 0
         
-        # Helper to process current chunk
-        def save_chunk(words):
-            chunk_text = " ".join(words)
-            chunks.append(chunk_text)
-            
-        for sentence in sentences:
-            sentence_words = sentence.split()
-            sentence_len = len(sentence_words)
-            
-            if sentence_len == 0:
-                continue
+        # Special handling for FAQ page to chunk by individual QA pairs
+        if "/FAQ" in url or "faq" in url.lower():
+            # Split by lookahead for numbered list items (e.g., "1. ", "2. ", etc.)
+            qa_segments = re.split(r'(?=\b\d+\.\s+)', text)
+            intro = ""
+            for seg in qa_segments:
+                seg = seg.strip()
+                if not seg:
+                    continue
+                # If it doesn't start with a number, it's the page intro/header
+                if not re.match(r'^\d+\.', seg):
+                    intro = seg
+                    continue
                 
-            # If a single sentence is huge, we have to split it forcefully
-            if sentence_len > self.chunk_size:
-                if current_chunk_words:
+                # Use a small context header rather than the whole page intro to avoid embedding dilution
+                chunk_text = f"UPSDM FAQ: {seg}"
+                chunks.append(chunk_text)
+        else:
+            # Split into approximate "sentences" 
+            # Hindi uses | (purna viram) or . for sentence endings
+            sentences = re.split(r'(?<=[.।!?])\s+', text)
+            
+            current_chunk_words = []
+            current_word_count = 0
+            
+            # Helper to process current chunk
+            def save_chunk(words):
+                chunk_text = " ".join(words)
+                chunks.append(chunk_text)
+                
+            for sentence in sentences:
+                sentence_words = sentence.split()
+                sentence_len = len(sentence_words)
+                
+                if sentence_len == 0:
+                    continue
+                    
+                # If a single sentence is huge, we have to split it forcefully
+                if sentence_len > self.chunk_size:
+                    if current_chunk_words:
+                        save_chunk(current_chunk_words)
+                        current_chunk_words = []
+                        current_word_count = 0
+                    
+                    # Split huge sentence into chunks of exact chunk_size
+                    for i in range(0, sentence_len, self.chunk_size - self.overlap):
+                        segment = sentence_words[i:i + self.chunk_size]
+                        save_chunk(segment)
+                    continue
+                    
+                # If adding this sentence would exceed the chunk size, save the current chunk
+                if current_word_count + sentence_len > self.chunk_size and current_word_count > 0:
                     save_chunk(current_chunk_words)
-                    current_chunk_words = []
-                    current_word_count = 0
-                
-                # Split huge sentence into chunks of exact chunk_size
-                for i in range(0, sentence_len, self.chunk_size - self.overlap):
-                    segment = sentence_words[i:i + self.chunk_size]
-                    save_chunk(segment)
-                continue
-                
-            # If adding this sentence would exceed the chunk size, save the current chunk
-            if current_word_count + sentence_len > self.chunk_size and current_word_count > 0:
+                    
+                    # Start new chunk with overlap
+                    overlap_words = current_chunk_words[-self.overlap:] if self.overlap > 0 else []
+                    current_chunk_words = overlap_words + sentence_words
+                    current_word_count = len(current_chunk_words)
+                else:
+                    # Add sentence to current chunk
+                    current_chunk_words.extend(sentence_words)
+                    current_word_count += sentence_len
+                    
+            # Save the last chunk if not empty
+            if current_chunk_words:
                 save_chunk(current_chunk_words)
-                
-                # Start new chunk with overlap
-                overlap_words = current_chunk_words[-self.overlap:] if self.overlap > 0 else []
-                current_chunk_words = overlap_words + sentence_words
-                current_word_count = len(current_chunk_words)
-            else:
-                # Add sentence to current chunk
-                current_chunk_words.extend(sentence_words)
-                current_word_count += sentence_len
-                
-        # Save the last chunk if not empty
-        if current_chunk_words:
-            save_chunk(current_chunk_words)
             
         # Format chunks as dicts with metadata
         source_id = url.replace('https://', '').replace('http://', '').strip('/')
