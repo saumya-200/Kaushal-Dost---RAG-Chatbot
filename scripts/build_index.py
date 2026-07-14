@@ -16,7 +16,7 @@ def main():
     chunks_file = "data/chunks.jsonl"
     
     if not Path(chunks_file).exists():
-        logger.error(f"{chunks_file} not found. Run crawler first.")
+        logger.error(f"{chunks_file} not found. Run crawle₹r first.")
         return
 
     logger.info("Loading chunks...")

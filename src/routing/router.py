@@ -11,6 +11,7 @@ from src.config import load_config
 from src.embeddings.embed import Embedder
 from src.embeddings.faiss_index import FAISSIndex
 from src.ingestion.text_extractor import TextExtractor
+from src.llm.generator import LLMGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class Router:
         self.embedder = Embedder()
         self.faiss_index = FAISSIndex()
         self.extractor = TextExtractor()
+        self.generator = LLMGenerator()
         
         # Load FAISS index if it exists
         try:
@@ -190,7 +192,7 @@ class Router:
         except Exception as e:
             logger.error(f"Error adding to Redis semantic cache: {e}")
 
-    def route(self, query: str) -> tuple[str, str, dict]:
+    def route(self, query: str, history: list[dict] = None) -> tuple[str, str, dict]:
         """
         Routes the user query through the multi-stage pipeline.
         Returns: (stage_used, answer, metadata)
@@ -240,8 +242,7 @@ class Router:
         # Route to LLM (Medium Confidence)
         elif score >= med_thresh:
             # LLM prompt and generation (Phase 5).
-            # We call Ollama if it's running and retrieve/generate.
-            response = self._generate_llm_response(query, results, lang)
+            response = self.generator.generate_answer(query, results, history)
             self.add_to_cache(query, q_emb, response, "llm")
             return "llm", response, metadata
             
@@ -250,54 +251,3 @@ class Router:
             response = self.get_fallback_response(lang)
             # Do NOT cache fallback responses to avoid polluting semantic cache
             return "fallback", response, metadata
-
-    def _generate_llm_response(self, query: str, chunks: list[dict], lang: str) -> str:
-        """Queries the local Ollama instance with context chunks."""
-        import httpx
-        
-        # Format context chunks
-        context_parts = []
-        for i, chunk in enumerate(chunks):
-            context_parts.append(f"Source [{chunk.get('title', 'Document')}]: {chunk.get('text')}")
-        context_text = "\n\n".join(context_parts)
-        
-        # Load prompt and system prompt rules
-        system_prompt = self.config.system_prompt
-        
-        # Generate prompt
-        prompt = f"Context information is below.\n---------------------\n{context_text}\n---------------------\nGiven the context information and not prior knowledge, answer the query.\nQuery: {query}\nAnswer:"
-        
-        primary_model = self.config.llm_config.get("primary_model", "qwen3:4b")
-        timeout = float(self.config.llm_config.get("timeout_seconds", 30))
-        
-        try:
-            # Standard Ollama chat API request
-            url = "http://localhost:11434/api/chat"
-            payload = {
-                "model": primary_model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                "stream": False,
-                "options": {
-                    "temperature": 0.1,  # Low temperature for factual consistency
-                    "num_predict": 2048  # Large enough token budget to support thinking + response
-                }
-            }
-            
-            logger.info(f"Calling Ollama model {primary_model}...")
-            r = httpx.post(url, json=payload, timeout=timeout)
-            if r.status_code == 200:
-                result = r.json()
-                answer = result.get("message", {}).get("content", "").strip()
-                if answer:
-                    return answer
-                    
-            logger.warning(f"Ollama returned status {r.status_code}. Falling back to default mock answer.")
-        except Exception as e:
-            logger.error(f"Error calling local Ollama instance: {e}")
-            
-        # Mock LLM answer if Ollama call fails (e.g. timeout or down)
-        # Returns the text of the first chunk to maintain context
-        return f"[Draft RAG Response] Based on the official details, {chunks[0]['text'][:150]}..."

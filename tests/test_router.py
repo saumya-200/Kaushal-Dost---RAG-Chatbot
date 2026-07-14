@@ -118,7 +118,7 @@ def test_confidence_threshold_routing(router):
     
     with patch.object(router.faiss_index, 'search', return_value=[med_score_chunk]):
         # Mock LLM API call to avoid making a real external request in tests
-        with patch.object(router, '_generate_llm_response', return_value="Synthesized LLM Response"):
+        with patch.object(router.generator, 'generate_answer', return_value="Synthesized LLM Response"):
             stage, response, meta = router.route("synthesis prompt details")
             assert stage == "llm"
             assert response == "Synthesized LLM Response"
