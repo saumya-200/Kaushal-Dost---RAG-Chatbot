@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # 1. Redis container for semantic caching
+  redis:
+    image: redis:7.0-alpine
+    container_name: upsdm-chatbot-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # 2. Ollama container for local LLM inference
+  ollama:
+    image: ollama/ollama:latest
+    container_name: upsdm-chatbot-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+  # 3. Model setup helper to automatically pull qwen3 models once Ollama starts
+  model-setup:
+    image: curlimages/curl:latest
+    container_name: upsdm-chatbot-model-setup
+    depends_on:
+      - ollama
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: >
+      "
+      echo 'Waiting for Ollama service to start...' &&
+      until curl -s http://ollama:11434/api/tags > /dev/null; do sleep 3; done &&
+      echo 'Ollama is online. Pulling primary model: qwen3:4b...' &&
+      curl -s -S -X POST http://ollama:11434/api/pull -d '{\"name\": \"qwen3:4b\"}' &&
+      echo '\nPulling fallback model: qwen3:1.7b...' &&
+      curl -s -S -X POST http://ollama:11434/api/pull -d '{\"name\": \"qwen3:1.7b\"}' &&
+      echo '\nLLM models successfully pulled and verified!'
+      "
+
+  # 4. The Python FastAPI RAG chatbot brain
+  rag-chatbot-brain:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: upsdm-chatbot-brain
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - redis
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
