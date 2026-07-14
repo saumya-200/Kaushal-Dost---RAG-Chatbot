@@ -1,0 +1,30 @@
+# Retrieval confidence thresholds
+retrieval:
+  high_confidence: 0.90     # Above this → return FAISS result directly, skip LLM
+  medium_confidence: 0.65   # Between 0.65–0.90 → send to LLM with retrieved context
+  low_confidence: 0.65      # Below this → return fallback message
+
+# Semantic cache
+cache:
+  similarity_threshold: 0.92  # Cosine similarity to consider a cache hit
+  ttl_seconds: 3600           # Cache entries expire after 1 hour
+  max_entries: 10000          # Max cached query-response pairs
+
+# LLM concurrency
+llm:
+  max_concurrent: 4           # asyncio.Semaphore cap
+  queue_size: 100             # Max queued requests before rejecting
+  timeout_seconds: 30         # Per-request timeout for Ollama
+  primary_model: "qwen3:4b"
+  fallback_model: "qwen3:1.7b"
+
+# Response constraints
+response:
+  max_words: 120              # Hard cap on response length
+  max_context_chunks: 3       # Top-k chunks sent to LLM
+  max_history_turns: 4        # Conversation history depth
+
+# Chunking
+chunking:
+  chunk_size_tokens: 500
+  chunk_overlap_tokens: 50

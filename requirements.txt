@@ -1,0 +1,36 @@
+# Web framework
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+pydantic==2.11.7
+
+# Crawling & text extraction
+scrapy==2.13.1
+trafilatura==2.0.0
+PyMuPDF==1.25.5
+pdfplumber==0.11.6
+pytesseract==0.3.13
+
+# Embeddings & search
+sentence-transformers==4.1.0
+faiss-cpu==1.11.0
+numpy==2.3.0
+
+# LLM
+httpx==0.28.1
+
+# Cache
+redis==5.3.0
+
+# Config
+pyyaml==6.0.2
+
+# Change detection
+# (stdlib: sqlite3, hashlib — no extra deps)
+
+# Testing
+pytest==8.4.1
+pytest-asyncio==1.0.0
+locust==2.37.4
+
+# Utilities
+langdetect==1.0.9
