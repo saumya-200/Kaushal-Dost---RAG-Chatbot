@@ -2,15 +2,20 @@ import logging
 import httpx
 import time
 import asyncio
+import re
 from fastapi import HTTPException
 from src.config import load_config
 
 logger = logging.getLogger(__name__)
 
 class LLMGenerator:
-    def __init__(self, ollama_host: str = "http://localhost:11434"):
+    def __init__(self, ollama_host: str = None):
+        import os
+        if ollama_host is None:
+            ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+        
         self.config = load_config()
-        self.ollama_url = f"{ollama_host}/api/chat"
+        self.ollama_url = f"{ollama_host.rstrip('/')}/api/chat"
         self.primary_model = self.config.llm_config.get("primary_model", "qwen3:4b")
         self.fallback_model = self.config.llm_config.get("fallback_model", "qwen3:1.7b")
         self.timeout = float(self.config.llm_config.get("timeout_seconds", 180))
@@ -140,6 +145,12 @@ class LLMGenerator:
         # Hard fallback response based on the top context chunk
         if chunks:
             top_chunk = chunks[0]
-            return f"[Draft RAG Response] Based on the official details, {top_chunk.get('text', '')[:180]}..."
+            raw_text = top_chunk.get('text', '')[:250]
+            # Strip links, paths and URLs
+            cleaned_text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', raw_text)
+            cleaned_text = re.sub(r'https?://\S+', '', cleaned_text)
+            cleaned_text = re.sub(r'/\S+\.\w+', '', cleaned_text)
+            cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+            return f"[Draft RAG Response] Based on the official details, {cleaned_text}... To locate the file, please navigate to the official website at upsdm.gov.in and click on the 'Downloads' section in the navbar."
             
         return "I'm sorry, I couldn't process your request at this time."

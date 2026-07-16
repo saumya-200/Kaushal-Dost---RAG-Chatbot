@@ -16,12 +16,24 @@ from src.llm.generator import LLMGenerator
 logger = logging.getLogger(__name__)
 
 class Router:
-    def __init__(self, db_host: str = "localhost", db_port: int = 6379):
+    def __init__(self, db_host: str = None, db_port: int = None):
+        import os
+        if db_host is None:
+            db_host = os.environ.get("REDIS_HOST", "localhost")
+        if db_port is None:
+            try:
+                db_port = int(os.environ.get("REDIS_PORT", 6379))
+            except ValueError:
+                db_port = 6379
+
         self.config = load_config()
         self.embedder = Embedder()
         self.faiss_index = FAISSIndex()
         self.extractor = TextExtractor()
-        self.generator = LLMGenerator()
+        
+        # Pass environment's OLLAMA_HOST if defined
+        ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+        self.generator = LLMGenerator(ollama_host=ollama_host)
         
         # Load FAISS index if it exists
         try:

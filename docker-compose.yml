@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   # 1. Redis container for semantic caching
@@ -55,6 +55,8 @@ services:
     depends_on:
       - redis
       - ollama
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
     restart: unless-stopped
 
 volumes:

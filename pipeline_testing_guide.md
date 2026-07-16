@@ -144,7 +144,7 @@ The server handles concurrent requests by queuing them or rejecting them instant
 * **Windows (with active virtualenv)**:
   ```cmd
   python scripts/load_test.py
-  ```
+
 * **Windows (explicit path)**:
   ```cmd
   .venv\Scripts\python scripts/load_test.py
@@ -285,7 +285,57 @@ Repeat the exact question from **Test Case C** to trigger a cache hit. The respo
 
 ---
 
-## 🔄 Step 8: Rebuilding the FAISS Vector Index (Optional)
+## 💬 Step 8: Interactive RAG Chat Testing (Asking Questions Yourself)
+
+You can interactively test the RAG pipeline by asking your own custom questions using the following methods:
+
+### Method A: Interactive CLI Chat Client (Recommended)
+An interactive terminal chat client [scripts/interactive_chat.py](file:///Users/ommakhija/Downloads/kaushal%20dost/Kaushal-Dost---RAG-Chatbot/scripts/interactive_chat.py) has been provided. It communicates with the active FastAPI server, retains conversational context (history) for multi-turn testing, and displays complete metadata for each turn, including:
+* The exact response text
+* The active routing stage used (`greeting`, `semantic_cache`, `faiss_direct`, `llm_generation`, or `fallback`)
+* The query processing latency in milliseconds
+* The source chunk IDs retrieved from FAISS
+
+#### How to run:
+* **macOS / Linux**:
+  ```bash
+  python scripts/interactive_chat.py
+  ```
+* **Windows (with active virtualenv)**:
+  ```cmd
+  python scripts/interactive_chat.py
+  ```
+
+#### Special Commands inside Chat:
+* Type `/clear` to flush the conversational history (starts a fresh thread).
+* Type `/exit` or `/quit` to terminate the interactive chat session.
+
+---
+
+### Method B: Interactive Swagger UI (Web Browser)
+FastAPI hosts a built-in interactive OpenAPI explorer where you can execute queries from a web-based dashboard.
+
+1. Open your web browser and navigate to [http://localhost:8000/docs](http://localhost:8000/docs).
+2. Expand the **`POST /chat`** endpoint.
+3. Click the **"Try it out"** button.
+4. Modify the request body to specify your custom question:
+   ```json
+   {
+     "message": "What is the official helpline number of UPSDM?",
+     "history": []
+   }
+   ```
+5. Click the blue **"Execute"** button. The server response will print directly on the page, showing the reply, routing stage, source IDs, and response latency.
+
+---
+
+### Method C: Postman or standard `curl`
+You can also issue custom HTTP requests using tools like Postman, Thunder Client, or command-line `curl`.
+(Refer to the detailed test cases in **Step 7** for exact payloads and commands).
+
+---
+
+## 🔄 Step 9: Rebuilding the FAISS Vector Index (Optional)
 
 If you modify raw files or ingest supplements, rebuild the vectorized FAISS index manually.
 

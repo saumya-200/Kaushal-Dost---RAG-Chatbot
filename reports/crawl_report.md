@@ -1,8 +1,8 @@
 # UPSDM Crawl Report
 
-- **Date**: 2026-07-14 12:44:19
-- **Duration**: 1.02 seconds
-- **Total HTML pages processed**: 26
-- **Total PDFs processed**: 4 (OCR used on 1)
-- **Total chunks generated**: 129
-- **Language distribution**: English: 89, Hindi: 0, Mixed: 40
+- **Date**: 2026-07-16 14:02:15
+- **Duration**: 4.05 seconds
+- **Total HTML pages processed**: 53
+- **Total PDFs processed**: 11 (OCR used on 3)
+- **Total chunks generated**: 398
+- **Language distribution**: English: 71, Hindi: 0, Mixed: 327

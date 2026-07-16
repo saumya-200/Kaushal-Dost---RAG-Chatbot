@@ -5,6 +5,8 @@ pydantic==2.11.7
 
 # Crawling & text extraction
 scrapy==2.13.1
+twisted==24.3.0
+beautifulsoup4==4.12.3
 trafilatura==2.0.0
 PyMuPDF==1.25.5
 pdfplumber==0.11.6

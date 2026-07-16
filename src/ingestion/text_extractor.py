@@ -23,20 +23,55 @@ class TextExtractor:
             self.has_hindi_ocr = False
 
     def extract_html(self, html: str, url: str) -> str:
-        """Extract main text from HTML using trafilatura."""
+        """Extract main text from HTML using trafilatura and append links/buttons."""
         try:
             # Trafilatura does an excellent job of removing boilerplates (nav, footer, etc)
             text = trafilatura.extract(html, url=url, include_links=True, include_images=False, include_tables=True)
-            if text:
-                return text.strip()
-            
-            # Fallback if trafilatura fails to find main content
+            if not text:
+                text = ""
+                
+            # Extract actionable links and buttons using BeautifulSoup
+            # to make sure we don't lose key buttons (like "RFP Registration")
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(html, 'html.parser')
-            # Remove scripts and styles
-            for script in soup(["script", "style", "header", "footer", "nav"]):
-                script.decompose()
-            return soup.get_text(separator=' ', strip=True)
+            
+            action_elements = []
+            
+            # 1. Links (a tags)
+            for a in soup.find_all('a'):
+                href = a.get('href', '').strip()
+                link_text = a.get_text(separator=' ', strip=True)
+                # Ignore empty, javascript, mailto, tel links
+                if href and link_text and not href.startswith(('javascript:', 'mailto:', 'tel:', '#')):
+                    action_elements.append(f"- Link: \"{link_text}\" leads to {href}")
+            
+            # 2. Buttons
+            for btn in soup.find_all('button'):
+                btn_text = btn.get_text(separator=' ', strip=True)
+                if btn_text:
+                    action_elements.append(f"- Button: \"{btn_text}\"")
+                    
+            # 3. Form input buttons (e.g. submit)
+            for inp in soup.find_all('input', type=['submit', 'button']):
+                val = inp.get('value', '').strip()
+                if val:
+                    action_elements.append(f"- Action Button: \"{val}\"")
+            
+            if action_elements:
+                unique_actions = []
+                seen = set()
+                for act in action_elements:
+                    if act not in seen:
+                        seen.add(act)
+                        unique_actions.append(act)
+                
+                actions_text = "\nAvailable links and buttons on this page:\n" + "\n".join(unique_actions)
+                if text:
+                    text = actions_text + "\n\n" + text
+                else:
+                    text = actions_text
+                    
+            return text.strip()
         except Exception as e:
             logger.error(f"Error extracting HTML from {url}: {e}")
             return ""
