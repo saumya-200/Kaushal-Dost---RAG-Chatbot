@@ -1,7 +1,7 @@
 import time
 import json
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -30,6 +30,10 @@ class ChatResponse(BaseModel):
     stage: str
     source_ids: List[str]
     latency_ms: float
+    # Extended routing metadata (optional — backward compatible with C# client)
+    confidence_score: Optional[float] = None
+    confidence_level: Optional[str] = None
+    routing_details: Optional[Dict[str, Any]] = None
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
@@ -61,6 +65,26 @@ async def chat_endpoint(request: ChatRequest):
         retrieved_chunks = metadata.get("retrieved_chunks", [])
         if retrieved_chunks:
             source_ids = [chunk.get("chunk_id", "unknown") for chunk in retrieved_chunks]
+        
+        # Build routing details for observability
+        routing_details = {
+            "detected_language": metadata.get("detected_language"),
+            "stage_latency_ms": metadata.get("stage_latency_ms"),
+            "embed_latency_ms": metadata.get("embed_latency_ms"),
+        }
+        
+        # Add stage-specific details
+        if "static_intent" in metadata:
+            routing_details["static_intent"] = metadata["static_intent"]
+        if "scope_score" in metadata:
+            routing_details["scope_score"] = metadata["scope_score"]
+            routing_details["scope_reason"] = metadata.get("scope_reason")
+        if "cached_query_match" in metadata:
+            routing_details["cached_query_match"] = metadata["cached_query_match"]
+        if "confidence_signals" in metadata:
+            routing_details["confidence_signals"] = metadata["confidence_signals"]
+        if "llm_latency_ms" in metadata:
+            routing_details["llm_latency_ms"] = metadata["llm_latency_ms"]
             
         # Structured JSON logging per response
         log_entry = {
@@ -68,7 +92,9 @@ async def chat_endpoint(request: ChatRequest):
             "query": query,
             "stage_used": stage,
             "source_ids": source_ids,
-            "latency_ms": round(latency_ms, 2)
+            "latency_ms": round(latency_ms, 2),
+            "confidence_level": metadata.get("confidence_level"),
+            "confidence_score": metadata.get("confidence_score"),
         }
         logger.info(f"RESPONSE_METRICS: {json.dumps(log_entry)}")
         
@@ -76,7 +102,10 @@ async def chat_endpoint(request: ChatRequest):
             reply=answer,
             stage=stage,
             source_ids=source_ids,
-            latency_ms=round(latency_ms, 2)
+            latency_ms=round(latency_ms, 2),
+            confidence_score=metadata.get("confidence_score"),
+            confidence_level=metadata.get("confidence_level"),
+            routing_details=routing_details
         )
         
     except HTTPException as he:

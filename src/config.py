@@ -10,12 +10,14 @@ CONFIG_DIR = BASE_DIR / "chatbot_config"
 APPROVED_DOMAINS_PATH = CONFIG_DIR / "approved_domains.json"
 THRESHOLDS_PATH = CONFIG_DIR / "thresholds.yaml"
 SYSTEM_PROMPT_PATH = CONFIG_DIR / "system_prompt.yaml"
+STATIC_KNOWLEDGE_PATH = CONFIG_DIR / "static_knowledge.yaml"
 
 class Config:
     def __init__(self):
         self.domains = self._load_json(APPROVED_DOMAINS_PATH)
         self.thresholds = self._load_yaml(THRESHOLDS_PATH)
         self.prompts = self._load_yaml(SYSTEM_PROMPT_PATH)
+        self._static_knowledge = self._load_yaml(STATIC_KNOWLEDGE_PATH) if STATIC_KNOWLEDGE_PATH.exists() else {}
         
     def _load_json(self, path: Path) -> dict:
         if not path.exists():
@@ -54,6 +56,18 @@ class Config:
         return self.thresholds.get("chunking", {})
 
     @property
+    def static_lookup_config(self) -> dict:
+        return self.thresholds.get("static_lookup", {})
+
+    @property
+    def scope_config(self) -> dict:
+        return self.thresholds.get("scope", {})
+
+    @property
+    def static_knowledge(self) -> dict:
+        return self._static_knowledge
+
+    @property
     def system_prompt(self) -> str:
         return self.prompts.get("system_prompt", "")
 
@@ -80,3 +94,4 @@ def load_config() -> Config:
     if _config_instance is None:
         _config_instance = Config()
     return _config_instance
+

@@ -12,6 +12,9 @@ from src.embeddings.embed import Embedder
 from src.embeddings.faiss_index import FAISSIndex
 from src.ingestion.text_extractor import TextExtractor
 from src.llm.generator import LLMGenerator
+from src.routing.static_lookup import StaticLookup
+from src.routing.scope_detector import ScopeDetector
+from src.routing.confidence import ConfidenceScorer, ConfidenceResult
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +34,16 @@ class Router:
         self.faiss_index = FAISSIndex()
         self.extractor = TextExtractor()
         
-        # Pass environment's OLLAMA_HOST if defined
+        # New Stage 0: Static Lookup
+        self.static_lookup = StaticLookup()
+        
+        # New Stage 1: Scope Detector
+        self.scope_detector = ScopeDetector()
+        
+        # New Stage 3: Confidence Scorer
+        self.confidence_scorer = ConfidenceScorer()
+        
+        # Stage 4: LLM Generator
         ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
         self.generator = LLMGenerator(ollama_host=ollama_host)
         
@@ -206,60 +218,134 @@ class Router:
 
     async def route(self, query: str, history: list[dict] = None) -> tuple[str, str, dict]:
         """
-        Routes the user query through the multi-stage pipeline.
+        Routes the user query through the 5-stage LLM-last pipeline.
+        
+        Stage 0a: Greeting detection (instant)
+        Stage 0b: Static factual lookup (instant)
+        Stage 1:  Scope detection (embedding-based, no LLM)
+        Stage 2:  Semantic cache check
+        Stage 3:  FAISS retrieval + confidence scoring → extractive or LLM
+        Stage 4:  LLM synthesis (last resort)
+        
         Returns: (stage_used, answer, metadata)
         """
+        t_start = time.time()
         metadata = {}
         
         # Detect language
         lang = self.extractor.detect_language(query)
         metadata["detected_language"] = lang
         
-        # Stage 1: Greeting/Small-Talk
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # STAGE 0a: Greeting / Small-Talk (<5ms)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         if self.is_greeting(query):
             response = self.get_greeting_response(lang)
+            metadata["stage_latency_ms"] = round((time.time() - t_start) * 1000, 2)
+            logger.info(f"ROUTING: stage=greeting, latency={metadata['stage_latency_ms']}ms")
             return "greeting", response, metadata
-            
-        # Embed query
-        q_emb = self.embedder.embed_query(query)
         
-        # Stage 2: Semantic Cache
-        is_hit, cached_response, matched_query = self.check_semantic_cache(q_emb)
-        if is_hit:
-            metadata["cached_query_match"] = matched_query
-            return "semantic_cache", cached_response, metadata
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # STAGE 0b: Static Factual Lookup (<10ms)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        is_static, static_answer, intent = self.static_lookup.lookup(query, lang)
+        if is_static:
+            metadata["static_intent"] = intent
+            metadata["stage_latency_ms"] = round((time.time() - t_start) * 1000, 2)
+            logger.info(f"ROUTING: stage=static_lookup, intent={intent}, "
+                        f"latency={metadata['stage_latency_ms']}ms")
+            return "static_lookup", static_answer, metadata
             
-        # Stage 3: FAISS Confidence-Based Retrieval
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # EMBED QUERY (once, reused across stages)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        t_embed = time.time()
+        q_emb = self.embedder.embed_query(query)
+        metadata["embed_latency_ms"] = round((time.time() - t_embed) * 1000, 2)
+        
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # STAGE 1: Scope Detection (<100ms)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # Run a lightweight FAISS search for scope check (top_k=3 — reused later)
         results = self.faiss_index.search(q_emb, top_k=3)
         metadata["retrieved_chunks"] = results
         
-        high_thresh = self.config.retrieval_thresholds.get("high_confidence", 0.90)
-        med_thresh = self.config.retrieval_thresholds.get("medium_confidence", 0.65)
+        in_scope, scope_score, scope_reason = self.scope_detector.is_in_scope(query, results)
+        metadata["scope_score"] = scope_score
+        metadata["scope_reason"] = scope_reason
         
-        if not results:
-            fallback = self.get_fallback_response(lang)
-            return "fallback", fallback, metadata
-            
-        top_chunk = results[0]
-        score = top_chunk["score"]
-        metadata["top_score"] = score
-        
-        # FAISS Direct Answer (High Confidence)
-        if score >= high_thresh:
-            response = top_chunk["text"]
-            # Save to semantic cache
-            self.add_to_cache(query, q_emb, response, "faiss_direct")
-            return "faiss_direct", response, metadata
-            
-        # Route to LLM (Medium Confidence)
-        elif score >= med_thresh:
-            # LLM prompt and generation (Phase 5).
-            response = await self.generator.generate_answer(query, results, history)
-            self.add_to_cache(query, q_emb, response, "llm")
-            return "llm", response, metadata
-            
-        # Fallback (Low Confidence)
-        else:
+        if not in_scope:
             response = self.get_fallback_response(lang)
-            # Do NOT cache fallback responses to avoid polluting semantic cache
+            metadata["stage_latency_ms"] = round((time.time() - t_start) * 1000, 2)
+            logger.info(f"ROUTING: stage=out_of_scope, reason={scope_reason}, "
+                        f"score={scope_score:.4f}, latency={metadata['stage_latency_ms']}ms")
+            # Do NOT cache scope rejections to avoid polluting the cache
+            return "out_of_scope", response, metadata
+        
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # STAGE 2: Semantic Cache (<50ms)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        is_hit, cached_response, matched_query = self.check_semantic_cache(q_emb)
+        if is_hit:
+            metadata["cached_query_match"] = matched_query
+            metadata["stage_latency_ms"] = round((time.time() - t_start) * 1000, 2)
+            logger.info(f"ROUTING: stage=semantic_cache, matched='{matched_query}', "
+                        f"latency={metadata['stage_latency_ms']}ms")
+            return "semantic_cache", cached_response, metadata
+        
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # STAGE 3: FAISS Retrieval + Confidence
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # Results already fetched in Stage 1 — reuse them
+        if not results:
+            response = self.get_fallback_response(lang)
+            metadata["stage_latency_ms"] = round((time.time() - t_start) * 1000, 2)
+            logger.info(f"ROUTING: stage=fallback (no results), "
+                        f"latency={metadata['stage_latency_ms']}ms")
             return "fallback", response, metadata
+        
+        # Compute multi-signal confidence
+        confidence = self.confidence_scorer.score(results)
+        metadata["confidence_level"] = confidence.level
+        metadata["confidence_score"] = confidence.score
+        metadata["confidence_signals"] = confidence.signals
+        metadata["top_score"] = results[0].get("score", 0.0)
+        
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # HIGH CONFIDENCE → Extractive Mode
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if confidence.level == "HIGH":
+            top_chunk = results[0]
+            response = ConfidenceScorer.format_extractive_answer(top_chunk)
+            self.add_to_cache(query, q_emb, response, "faiss_direct")
+            metadata["stage_latency_ms"] = round((time.time() - t_start) * 1000, 2)
+            logger.info(f"ROUTING: stage=faiss_direct (extractive), "
+                        f"confidence={confidence.score:.4f}, "
+                        f"latency={metadata['stage_latency_ms']}ms")
+            return "faiss_direct", response, metadata
+        
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # MEDIUM CONFIDENCE → LLM Synthesis (Stage 4)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if confidence.level == "MEDIUM":
+            t_llm = time.time()
+            response = await self.generator.generate_answer(query, results, history)
+            metadata["llm_latency_ms"] = round((time.time() - t_llm) * 1000, 2)
+            self.add_to_cache(query, q_emb, response, "llm_generation")
+            metadata["stage_latency_ms"] = round((time.time() - t_start) * 1000, 2)
+            logger.info(f"ROUTING: stage=llm_generation, "
+                        f"confidence={confidence.score:.4f}, "
+                        f"llm_latency={metadata['llm_latency_ms']}ms, "
+                        f"total_latency={metadata['stage_latency_ms']}ms")
+            return "llm_generation", response, metadata
+        
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # LOW CONFIDENCE → Fallback
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        response = self.get_fallback_response(lang)
+        metadata["stage_latency_ms"] = round((time.time() - t_start) * 1000, 2)
+        logger.info(f"ROUTING: stage=fallback (low confidence), "
+                    f"confidence={confidence.score:.4f}, "
+                    f"latency={metadata['stage_latency_ms']}ms")
+        # Do NOT cache fallback responses to avoid polluting semantic cache
+        return "fallback", response, metadata

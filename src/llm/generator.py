@@ -71,22 +71,23 @@ class LLMGenerator:
             return await self._execute_generation(query, chunks, history, use_fallback_model)
 
     async def _execute_generation(self, query: str, chunks: list[dict], history: list[dict], use_fallback_model: bool) -> str:
-        """Executes LLM generation asynchronously."""
+        """Executes LLM generation asynchronously with optimized prompt and token budget."""
         # Format the context chunks
         context_text = self._format_context(chunks)
         
         # Build the system prompt
         system_prompt = self.config.system_prompt
         
-        # Build prompt body
+        # Build optimized prompt body — shorter and more directive than before
+        # /no_think suppresses Qwen3's chain-of-thought reasoning mode to save CPU
         prompt = (
-            f"Context information is below.\n"
-            f"---------------------\n"
-            f"{context_text}\n"
-            f"---------------------\n"
-            f"Given the context information and not prior knowledge, answer the query.\n"
-            f"Query: {query}\n"
-            f"Answer:"
+            f"/no_think\n"
+            f"Context:\n"
+            f"{context_text}\n\n"
+            f"Question: {query}\n\n"
+            f"Answer using ONLY the context above. Be concise (under 120 words). "
+            f"If the context doesn't contain the answer, say you don't have that information "
+            f"and direct them to upsdm.gov.in or helpline 0522-4944200."
         )
         
         # Compile messages array for chat completion
@@ -111,8 +112,9 @@ class LLMGenerator:
             "messages": messages,
             "stream": False,
             "options": {
-                "temperature": 0.1,  # Low temperature for factual consistency
-                "num_predict": 2048  # Large enough token budget to support reasoning + answer
+                "temperature": 0.1,   # Low temperature for factual consistency
+                "top_p": 0.9,         # Reduce diversity for factual answers
+                "num_predict": 150    # ~120 words ≈ 150 tokens — down from 2048
             }
         }
         
@@ -154,3 +156,4 @@ class LLMGenerator:
             return f"[Draft RAG Response] Based on the official details, {cleaned_text}... To locate the file, please navigate to the official website at upsdm.gov.in and click on the 'Downloads' section in the navbar."
             
         return "I'm sorry, I couldn't process your request at this time."
+
