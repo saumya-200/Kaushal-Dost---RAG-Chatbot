@@ -16,7 +16,7 @@ llm:
   queue_size: 100             # Max queued requests before rejecting
   timeout_seconds: 75         # Per-request timeout for Ollama
   primary_model: "qwen3:0.6b"
-  fallback_model: "qwen3:0.5b"
+  fallback_model: "qwen3:1.7b"
 
 # Response constraints
 response:
