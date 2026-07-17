@@ -33,10 +33,10 @@ services:
       "
       echo 'Waiting for Ollama service to start...' &&
       until curl -s http://ollama:11434/api/tags > /dev/null; do sleep 3; done &&
-      echo 'Ollama is online. Pulling primary model: qwen3:4b...' &&
-      curl -s -S -X POST http://ollama:11434/api/pull -d '{\"name\": \"qwen3:4b\"}' &&
-      echo '\nPulling fallback model: qwen3:1.7b...' &&
-      curl -s -S -X POST http://ollama:11434/api/pull -d '{\"name\": \"qwen3:1.7b\"}' &&
+      echo 'Ollama is online. Pulling primary model: qwen3:0.6b...' &&
+      curl -s -S -X POST http://ollama:11434/api/pull -d '{\"name\": \"qwen3:0.6b\"}' &&
+      echo '\nPulling fallback model: qwen3:0.5b...' &&
+      curl -s -S -X POST http://ollama:11434/api/pull -d '{\"name\": \"qwen3:0.5b\"}' &&
       echo '\nLLM models successfully pulled and verified!'
       "
 

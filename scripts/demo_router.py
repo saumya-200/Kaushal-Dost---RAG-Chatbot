@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import time
+import asyncio
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
@@ -17,7 +18,7 @@ def format_result(query: str, stage: str, response: str, latency: float, meta: d
     print(f"Answer:  {response[:180]}...")
     print("-" * 50)
 
-def main():
+async def main():
     print("Initializing Router...")
     router = Router()
     print("=" * 50)
@@ -38,31 +39,32 @@ def main():
     # 1. Greeting Router
     q1 = "Hello there!"
     t0 = time.time()
-    stage, answer, meta = router.route(q1)
+    stage, answer, meta = await router.route(q1)
     format_result(q1, stage, answer, time.time() - t0, meta)
     
     # 2. Main Search & LLM (Cache Miss)
     q2 = "What is UPSDM?"
     t0 = time.time()
-    stage, answer, meta = router.route(q2)
+    stage, answer, meta = await router.route(q2)
     format_result(q2, stage, answer, time.time() - t0, meta)
     
     # 3. Exact query repeated (Cache Hit)
     t0 = time.time()
-    stage, answer, meta = router.route(q2)
+    stage, answer, meta = await router.route(q2)
     format_result(q2, stage, answer, time.time() - t0, meta)
     
     # 4. Paraphrase query (Semantic Cache Hit)
     q3 = "What is the meaning of UPSDM?"
     t0 = time.time()
-    stage, answer, meta = router.route(q3)
+    stage, answer, meta = await router.route(q3)
     format_result(q3, stage, answer, time.time() - t0, meta)
     
     # 5. Low confidence query (Fallback)
     q4 = "Who is the Prime Minister of Australia?"
     t0 = time.time()
-    stage, answer, meta = router.route(q4)
+    stage, answer, meta = await router.route(q4)
     format_result(q4, stage, answer, time.time() - t0, meta)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
+

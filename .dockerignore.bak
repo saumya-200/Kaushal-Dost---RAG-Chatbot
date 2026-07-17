@@ -1,0 +1,32 @@
+# Ignore all virtual environments
+.venv
+.venv/
+.venv*
+venv
+venv/
+env
+env/
+
+# Python cache
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Git
+.git
+
+# IDEs
+.vscode
+.idea
+
+# Python caches
+.pytest_cache
+.mypy_cache
+
+# Environment files
+.env
+
+# Build output
+dist
+build

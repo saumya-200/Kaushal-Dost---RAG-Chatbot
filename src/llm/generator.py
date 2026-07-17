@@ -16,8 +16,8 @@ class LLMGenerator:
         
         self.config = load_config()
         self.ollama_url = f"{ollama_host.rstrip('/')}/api/chat"
-        self.primary_model = self.config.llm_config.get("primary_model", "qwen3:4b")
-        self.fallback_model = self.config.llm_config.get("fallback_model", "qwen3:1.7b")
+        self.primary_model = self.config.llm_config.get("primary_model", "qwen3:0.6b")
+        self.fallback_model = self.config.llm_config.get("fallback_model", "qwen3:0.5b")
         self.timeout = float(self.config.llm_config.get("timeout_seconds", 180))
         
         # Concurrency settings
