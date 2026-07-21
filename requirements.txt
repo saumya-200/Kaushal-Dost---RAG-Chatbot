@@ -15,7 +15,7 @@ pytesseract==0.3.13
 # Embeddings & search
 sentence-transformers==4.1.0
 faiss-cpu==1.11.0
-numpy==2.3.0
+numpy>=2.2.0,<2.4.0
 
 # LLM
 httpx==0.28.1

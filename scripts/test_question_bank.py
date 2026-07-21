@@ -3,6 +3,8 @@ import time
 import asyncio
 import json
 import os
+import uuid
+from pathlib import Path
 
 # ============================================================
 # UPSDM RAG CHATBOT - QUESTION BANK WITH EXPECTED ANSWERS
@@ -170,9 +172,10 @@ def _wrap_text(text, width):
 async def test_question(client, category, idx, item):
     question = item["q"]
     expected = item["expected"]
+    test_id = f"test-run-{uuid.uuid4()}"
 
     url = "http://localhost:8000/chat"
-    payload = {"message": question, "history": []}
+    payload = {"message": question, "history": [], "test_id": test_id}
 
     t0 = time.time()
     try:
@@ -217,10 +220,11 @@ async def main():
 
             for idx, item in enumerate(questions, 1):
                 t0 = time.time()
+                test_id = f"test-run-{uuid.uuid4()}"
                 try:
                     response = await client.post(
                         "http://localhost:8000/chat",
-                        json={"message": item["q"], "history": []},
+                        json={"message": item["q"], "history": [], "test_id": test_id},
                         timeout=200.0
                     )
                     latency = (time.time() - t0) * 1000
@@ -266,5 +270,41 @@ async def main():
     print_separator()
 
 
+import argparse
+import sys
+
+class TeeLogger:
+    def __init__(self, filepath):
+        self.stream = sys.__stdout__
+        Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+        self.file = open(filepath, "w", encoding="utf-8")
+
+    def write(self, data):
+        self.stream.write(data)
+        self.file.write(data)
+
+    def flush(self):
+        self.stream.flush()
+        self.file.flush()
+
+    def close(self):
+        self.file.close()
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="UPSDM RAG Chatbot Question Bank Test")
+    parser.add_argument("--output", "-o", type=str, default=None, help="Path to save full output markdown file")
+    args = parser.parse_args()
+
+    tee = None
+    if args.output:
+        tee = TeeLogger(args.output)
+        sys.stdout = tee
+
+    try:
+        asyncio.run(main())
+    finally:
+        if tee:
+            sys.stdout = sys.__stdout__
+            tee.close()
+

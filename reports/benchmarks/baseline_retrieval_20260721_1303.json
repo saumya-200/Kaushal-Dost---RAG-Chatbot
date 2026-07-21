@@ -1,0 +1,308 @@
+{
+  "timestamp": "2026-07-21T07:38:37.665403+00:00",
+  "total_queries": 30,
+  "metrics": {
+    "top1_accuracy": 0.1667,
+    "top3_accuracy": 0.2,
+    "recall_at_1": 0.1667,
+    "recall_at_3": 0.2,
+    "mrr": 0.1778
+  },
+  "language_stats": {
+    "en": {
+      "total": 13,
+      "hits": 3,
+      "accuracy": 0.2308
+    },
+    "hi": {
+      "total": 5,
+      "hits": 1,
+      "accuracy": 0.2
+    },
+    "romanized_hi": {
+      "total": 1,
+      "hits": 0,
+      "accuracy": 0.0
+    },
+    "hinglish": {
+      "total": 11,
+      "hits": 2,
+      "accuracy": 0.1818
+    }
+  },
+  "category_stats": {
+    "registration": {
+      "total": 4,
+      "hits": 3,
+      "accuracy": 0.75
+    },
+    "eligibility": {
+      "total": 3,
+      "hits": 1,
+      "accuracy": 0.3333
+    },
+    "courses": {
+      "total": 2,
+      "hits": 0,
+      "accuracy": 0.0
+    },
+    "contact": {
+      "total": 3,
+      "hits": 0,
+      "accuracy": 0.0
+    },
+    "about": {
+      "total": 5,
+      "hits": 0,
+      "accuracy": 0.0
+    },
+    "partnership": {
+      "total": 2,
+      "hits": 0,
+      "accuracy": 0.0
+    },
+    "fees": {
+      "total": 2,
+      "hits": 0,
+      "accuracy": 0.0
+    },
+    "stories": {
+      "total": 2,
+      "hits": 0,
+      "accuracy": 0.0
+    },
+    "schemes": {
+      "total": 3,
+      "hits": 0,
+      "accuracy": 0.0
+    },
+    "downloads": {
+      "total": 2,
+      "hits": 0,
+      "accuracy": 0.0
+    },
+    "policy": {
+      "total": 2,
+      "hits": 2,
+      "accuracy": 1.0
+    }
+  },
+  "failures": [
+    {
+      "query": "registration kaise kare UPSDM",
+      "expected": "upsdm.gov.in/Home/FAQ",
+      "got": [
+        "www.upsdm.gov.in/Home/BeyondVisible",
+        "www.upsdm.gov.in/Home/Downloads",
+        "www.upsdm.gov.in/Home/DSDP"
+      ]
+    },
+    {
+      "query": "ट्रेनिंग के लिए उम्र सीमा क्या है?",
+      "expected": "upsdm.gov.in/Home/FAQ",
+      "got": [
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/ProjectPraveen.pdf",
+        "www.upsdm.gov.in/Content/WebAssets/pdfFiles/State_Skill_Development_Fund.pdf",
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/DDU-GKY1.pdf"
+      ]
+    },
+    {
+      "query": "training ke liye age limit kya hai",
+      "expected": "upsdm.gov.in/Home/FAQ",
+      "got": [
+        "www.upsdm.gov.in/Home/RunningSchemes",
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/PMKVYGuidelines(2016-2020).pdf",
+        "www.upsdm.gov.in/Home/SkillMitraIndex"
+      ]
+    },
+    {
+      "query": "What courses are available?",
+      "expected": "upsdm.gov.in/Home/CourseDetails",
+      "got": [
+        "www.upsdm.gov.in/Home/FAQ",
+        "www.upsdm.gov.in/Home/FAQ",
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/tradition_jobrole_list.pdf"
+      ]
+    },
+    {
+      "query": "कौन कौन से कोर्स उपलब्ध हैं?",
+      "expected": "upsdm.gov.in/Home/CourseDetails",
+      "got": [
+        "www.upsdm.gov.in/Home/KaushalDrishti",
+        "www.upsdm.gov.in/Home/PrivacyPolicy",
+        "www.upsdm.gov.in/Home/HyperlinkingPolicy"
+      ]
+    },
+    {
+      "query": "UPSDM contact number",
+      "expected": "upsdm.gov.in/Home/ContactUsSPMU",
+      "got": [
+        "www.upsdm.gov.in/Home/DSDP",
+        "www.upsdm.gov.in/Home/FAQ",
+        "www.upsdm.gov.in/Home/Downloads"
+      ]
+    },
+    {
+      "query": "UPSDM का फोन नंबर क्या है?",
+      "expected": "upsdm.gov.in/Home/ContactUsSPMU",
+      "got": [
+        "www.upsdm.gov.in/Home/FAQ",
+        "www.upsdm.gov.in/Home/DSDP",
+        "www.upsdm.gov.in/Content/map/Index.html"
+      ]
+    },
+    {
+      "query": "UPSDM helpline number batao",
+      "expected": "upsdm.gov.in/Home/ContactUsSPMU",
+      "got": [
+        "www.upsdm.gov.in/Home/DSDP",
+        "www.upsdm.gov.in/Content/map/Index.html",
+        "www.upsdm.gov.in/Home/SkillMitraIndex"
+      ]
+    },
+    {
+      "query": "What is UPSDM?",
+      "expected": "upsdm.gov.in/Home/AboutUPSDM",
+      "got": [
+        "www.upsdm.gov.in/Home/FAQ",
+        "www.upsdm.gov.in/Home/Downloads",
+        "www.upsdm.gov.in/Home/DSDP"
+      ]
+    },
+    {
+      "query": "UPSDM क्या है?",
+      "expected": "upsdm.gov.in/Home/AboutUPSDM",
+      "got": [
+        "www.upsdm.gov.in/Home/FAQ",
+        "www.upsdm.gov.in/Home/Downloads",
+        "www.upsdm.gov.in/Home/DSDP"
+      ]
+    },
+    {
+      "query": "training partner kaise bane",
+      "expected": "upsdm.gov.in/Home/AboutTrainingPartner",
+      "got": [
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/ProjectPraveen.pdf",
+        "www.upsdm.gov.in/Home/Index",
+        "www.upsdm.gov.in/Home/Index"
+      ]
+    },
+    {
+      "query": "How to become a training partner?",
+      "expected": "upsdm.gov.in/Home/AboutTrainingPartner",
+      "got": [
+        "www.upsdm.gov.in/Home/FAQ",
+        "www.upsdm.gov.in/Home/FAQ",
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/PMKVYGuidelines(2016-2020).pdf"
+      ]
+    },
+    {
+      "query": "fee kitni hai course ki",
+      "expected": "upsdm.gov.in/Home/FAQ",
+      "got": [
+        "www.upsdm.gov.in/Home/SkillMitraIndex",
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/ProjectPraveen.pdf",
+        "www.upsdm.gov.in/Home/CourseCategory4"
+      ]
+    },
+    {
+      "query": "What is the course fee?",
+      "expected": "upsdm.gov.in/Home/FAQ",
+      "got": [
+        "www.upsdm.gov.in/Home/Downloads",
+        "www.upsdm.gov.in/Home/SkillMitraIndex",
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/PMKVYGuidelines(2016-2020).pdf"
+      ]
+    },
+    {
+      "query": "DPMU kya hai",
+      "expected": "upsdm.gov.in/Home/AboutDPMU",
+      "got": [
+        "www.upsdm.gov.in/Content/Grading_Pdf/TPGrading2025-26.pdf",
+        "www.upsdm.gov.in/Home/Downloads",
+        "www.upsdm.gov.in/Content/Grading_Pdf/TPGrading2025-26.pdf"
+      ]
+    },
+    {
+      "query": "What is DPMU?",
+      "expected": "upsdm.gov.in/Home/AboutDPMU",
+      "got": [
+        "www.upsdm.gov.in/Home/Media",
+        "www.upsdm.gov.in/Home/Index",
+        "www.upsdm.gov.in/Home/Index"
+      ]
+    },
+    {
+      "query": "SPMU kya karta hai",
+      "expected": "upsdm.gov.in/Home/AboutSPMU",
+      "got": [
+        "www.upsdm.gov.in/Home/Index",
+        "www.upsdm.gov.in/Home/Index",
+        "www.upsdm.gov.in/Home/Index"
+      ]
+    },
+    {
+      "query": "success stories dikhao",
+      "expected": "upsdm.gov.in/Home/SuccessStory",
+      "got": [
+        "www.upsdm.gov.in/Home/Media",
+        "www.upsdm.gov.in/Home/Index",
+        "www.upsdm.gov.in/Home/Index"
+      ]
+    },
+    {
+      "query": "Show me success stories",
+      "expected": "upsdm.gov.in/Home/SuccessStory",
+      "got": [
+        "www.upsdm.gov.in/Home/Media",
+        "www.upsdm.gov.in/Home/Index",
+        "www.upsdm.gov.in/Home/Index"
+      ]
+    },
+    {
+      "query": "PMKVY kya hai",
+      "expected": "upsdm.gov.in/Home/RunningSchemes",
+      "got": [
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/PMKVYGuidelines(2016-2020).pdf",
+        "www.upsdm.gov.in/Home/PrivacyPolicy",
+        "www.upsdm.gov.in/Home/HyperlinkingPolicy"
+      ]
+    },
+    {
+      "query": "What is PMKVY scheme?",
+      "expected": "upsdm.gov.in/Home/RunningSchemes",
+      "got": [
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/PMKVYGuidelines(2016-2020).pdf",
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/PMKVYGuidelines(2016-2020).pdf",
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/PMKVYGuidelines(2016-2020).pdf"
+      ]
+    },
+    {
+      "query": "DDU-GKY scheme details",
+      "expected": "upsdm.gov.in/Home/RunningSchemes",
+      "got": [
+        "www.upsdm.gov.in/Content/WebAssets/images/resource/DDU-GKY1.pdf",
+        "www.upsdm.gov.in/Home/DSDP",
+        "www.upsdm.gov.in/Home/Downloads"
+      ]
+    },
+    {
+      "query": "download karna hai form",
+      "expected": "upsdm.gov.in/Home/Downloads",
+      "got": [
+        "www.upsdm.gov.in/Home/KaushalDrishti",
+        "www.upsdm.gov.in/Home/PrivacyPolicy",
+        "www.upsdm.gov.in/Home/HyperlinkingPolicy"
+      ]
+    },
+    {
+      "query": "Where to download application form?",
+      "expected": "upsdm.gov.in/Home/Downloads",
+      "got": [
+        "www.upsdm.gov.in/Home/KaushalDrishti",
+        "www.upsdm.gov.in/Home/KaushalDristiCandidateRegistration",
+        "www.upsdm.gov.in/Home/PrivacyPolicy"
+      ]
+    }
+  ]
+}

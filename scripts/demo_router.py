@@ -6,7 +6,7 @@ import asyncio
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from src.routing.router import Router
-
+  
 def format_result(query: str, stage: str, response: str, latency: float, meta: dict):
     print(f"Query:   '{query}'")
     print(f"Stage:   {stage}")

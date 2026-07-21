@@ -24,12 +24,14 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: Optional[List[ChatMessage]] = None
+    test_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     reply: str
     stage: str
     source_ids: List[str]
     latency_ms: float
+    cache_status: str  # "HIT" or "MISS"
     # Extended routing metadata (optional — backward compatible with C# client)
     confidence_score: Optional[float] = None
     confidence_level: Optional[str] = None
@@ -55,7 +57,7 @@ async def chat_endpoint(request: ChatRequest):
             
     try:
         # Route query through multi-stage pipeline
-        stage, answer, metadata = await router.route(query, history=history_dicts)
+        stage, answer, metadata = await router.route(query, history=history_dicts, test_id=request.test_id)
         
         # Calculate latency
         latency_ms = (time.time() - t0) * 1000
@@ -74,6 +76,12 @@ async def chat_endpoint(request: ChatRequest):
         }
         
         # Add stage-specific details
+        if "detected_persona" in metadata:
+            routing_details["detected_persona"] = metadata["detected_persona"]
+            routing_details["persona_score"] = metadata.get("persona_score")
+        if "detected_intent" in metadata:
+            routing_details["detected_intent"] = metadata["detected_intent"]
+            routing_details["intent_score"] = metadata.get("intent_score")
         if "static_intent" in metadata:
             routing_details["static_intent"] = metadata["static_intent"]
         if "scope_score" in metadata:
@@ -103,6 +111,7 @@ async def chat_endpoint(request: ChatRequest):
             stage=stage,
             source_ids=source_ids,
             latency_ms=round(latency_ms, 2),
+            cache_status=metadata.get("cache_status", "MISS"),
             confidence_score=metadata.get("confidence_score"),
             confidence_level=metadata.get("confidence_level"),
             routing_details=routing_details

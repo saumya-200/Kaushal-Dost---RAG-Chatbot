@@ -52,3 +52,28 @@ response:
 chunking:
   chunk_size_tokens: 500
   chunk_overlap_tokens: 50
+
+# Redesigned Router Configuration
+routing:
+  persona_threshold: 0.50
+  intent_threshold: 0.50
+  template_threshold: 0.70
+  ambiguity_margin: 0.03
+  extraction_threshold: 0.65
+  cache_threshold: 0.92
+  out_of_scope_threshold: 0.45
+  
+  template_weights:
+    embedding_similarity: 0.40
+    keyword_match: 0.25
+    intent_confidence: 0.20
+    persona_confidence: 0.15
+    
+  retrieval_weights:
+    top_score: 0.40
+    avg_top_k: 0.20
+    score_gap: 0.15
+    metadata_quality: 0.10
+    chunk_length: 0.05
+    source_diversity: 0.10
+

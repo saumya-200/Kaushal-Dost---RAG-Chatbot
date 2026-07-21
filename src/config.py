@@ -64,6 +64,10 @@ class Config:
         return self.thresholds.get("scope", {})
 
     @property
+    def routing_config(self) -> dict:
+        return self.thresholds.get("routing", {})
+
+    @property
     def static_knowledge(self) -> dict:
         return self._static_knowledge
 
