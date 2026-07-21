@@ -56,7 +56,8 @@ def process_raw_files(raw_file: str, output_file: str, report_file: str):
             
             if 'text/html' in content_type:
                 total_pages += 1
-                text = extractor.extract_html(data['html'], url)
+                extracted = extractor.extract_html(data['html'], url)
+                text = extracted.get('text', '') if isinstance(extracted, dict) else extracted
             elif 'application/pdf' in content_type:
                 total_pdfs += 1
                 pdf_bytes = base64.b64decode(data['pdf_base64'])

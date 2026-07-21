@@ -3,6 +3,8 @@ import logging
 import numpy as np
 from src.config import load_config
 from src.embeddings.embed import Embedder
+from src.embeddings.faiss_index import FAISSIndex
+from src.ingestion.sentence_splitter import split_into_sentences
 
 logger = logging.getLogger(__name__)
 
@@ -10,10 +12,12 @@ class ExtractiveGenerator:
     """
     Computes Retrieval Confidence and extracts the most relevant sentences
     from FAISS search chunks to form a factual, CPU-only answer without LLM generation.
+    Uses precomputed sentence embeddings when available to eliminate live encoding latency.
     """
-    def __init__(self, embedder: Embedder = None):
+    def __init__(self, embedder: Embedder = None, faiss_index: FAISSIndex = None):
         self.config = load_config()
         self.embedder = embedder if embedder is not None else Embedder()
+        self.faiss_index = faiss_index if faiss_index is not None else FAISSIndex()
         
         # Load weights and thresholds from thresholds.yaml under 'routing' key
         routing_config = self.config.routing_config
@@ -32,10 +36,12 @@ class ExtractiveGenerator:
         Computes a composite retrieval confidence score from FAISS results.
         Returns: (confidence_level, composite_score, signals)
         """
-        if not results:
+        # Exclude administrative_list chunks from FAISS_DIRECT retrieval candidates
+        valid_results = [r for r in results if r.get("content_type") != "administrative_list"]
+        if not valid_results:
             return "LOW", 0.0, {}
             
-        scores = [r.get("score", 0.0) for r in results]
+        scores = [r.get("score", 0.0) for r in valid_results]
         
         # Signal 1: Top-1 similarity
         top_score = scores[0]
@@ -53,22 +59,22 @@ class ExtractiveGenerator:
         
         # Signal 4: Metadata quality (presence of chunk_id and source_url)
         meta_count = 0
-        total_meta = len(results[:3]) * 2
-        for r in results[:3]:
+        total_meta = len(valid_results[:3]) * 2
+        for r in valid_results[:3]:
             if r.get("chunk_id"): meta_count += 1
             if r.get("source_url"): meta_count += 1
         meta_score = meta_count / max(total_meta, 1)
         
         # Signal 5: Chunk length (if top chunks have sufficient context, e.g. >120 chars)
         len_score = 0.0
-        for r in results[:3]:
+        for r in valid_results[:3]:
             if len(r.get("text", "")) > 120:
                 len_score += 1.0
-        len_score = len_score / len(results[:3])
+        len_score = len_score / len(valid_results[:3])
         
         # Signal 6: Source diversity (unique source files/URLs in top-k)
         sources = set()
-        for r in results[:3]:
+        for r in valid_results[:3]:
             sources.add(r.get("source_url", r.get("source_id", "")))
         diversity_score = min(len(sources) / 2.0, 1.0) # max 2 sources = 1.0
         
@@ -97,54 +103,74 @@ class ExtractiveGenerator:
         return level, composite, signals
 
     def _split_into_sentences(self, text: str) -> list[str]:
-        """Splits English and Hindi paragraphs into sentences."""
-        # Split on period, question mark, exclamation, or Devanagari danda ।
-        raw_sentences = re.split(r'(?<=[.!?।])\s+', text)
-        sentences = []
-        for s in raw_sentences:
-            s_clean = s.strip()
-            if s_clean and len(s_clean) > 8:
-                sentences.append(s_clean)
-        return sentences
+        """Splits English and Hindi paragraphs into sentences using shared splitter."""
+        return split_into_sentences(text)
 
     def generate_extractive_answer(self, query: str, query_embedding: np.ndarray, results: list[dict]) -> str:
         """
         Extracts and joins the most relevant sentences from the top FAISS chunks.
         Avoids hallucination and preserves official wording.
         """
-        if not results:
+        valid_results = [r for r in results if r.get("content_type") != "administrative_list"]
+        if not valid_results:
             return ""
             
-        top_chunks = results[:2] # extract from top 2 chunks
+        top_chunks = valid_results[:2] # extract from top 2 chunks
+        chunk_ids = [c.get("chunk_id") for c in top_chunks if c.get("chunk_id")]
+        
+        # Fetch precomputed sentence embeddings from FAISSIndex
+        found_sentences, missing_chunk_ids = self.faiss_index.get_sentences_for_chunks(chunk_ids)
         
         all_sentences = []
         seen_sentences = set()
         
         for idx, chunk in enumerate(top_chunks):
-            chunk_text = chunk.get("text", "")
-            sentences = self._split_into_sentences(chunk_text)
-            for s in sentences:
-                s_normalized = s.lower().strip()
-                if s_normalized not in seen_sentences:
-                    seen_sentences.add(s_normalized)
-                    all_sentences.append({
-                        "text": s,
-                        "source": chunk.get("source_url", "upsdm.gov.in"),
-                        "chunk_index": idx
-                    })
-                    
+            cid = chunk.get("chunk_id")
+            if cid in missing_chunk_ids or not cid:
+                # Fallback path: live encoding for chunks missing from precomputed sentence index
+                logger.warning(f"Chunk {cid} missing from precomputed sentence index; falling back to live encoding.")
+                chunk_text = chunk.get("text", "")
+                sentences = split_into_sentences(chunk_text)
+                for s in sentences:
+                    s_normalized = s.lower().strip()
+                    if s_normalized not in seen_sentences:
+                        seen_sentences.add(s_normalized)
+                        emb = self.embedder.embed_query(s) # live encoding fallback
+                        all_sentences.append({
+                            "text": s,
+                            "source": chunk.get("source_url", "upsdm.gov.in"),
+                            "chunk_index": idx,
+                            "embedding": emb.flatten()
+                        })
+            else:
+                # Fast path: precomputed sentence embeddings
+                chunk_sents = [s for s in found_sentences if s["chunk_id"] == cid]
+                for s in chunk_sents:
+                    s_text = s["text"]
+                    s_normalized = s_text.lower().strip()
+                    if s_normalized not in seen_sentences:
+                        seen_sentences.add(s_normalized)
+                        all_sentences.append({
+                            "text": s_text,
+                            "source": chunk.get("source_url", "upsdm.gov.in"),
+                            "chunk_index": idx,
+                            "embedding": s["embedding"].flatten()
+                        })
+                        
         if not all_sentences:
             return ""
             
         # Score each sentence for relevance to the query
         query_words = set(query.lower().strip().split())
+        query_vec = query_embedding.flatten()
         scored_sentences = []
         
         for item in all_sentences:
             sentence_text = item["text"]
-            # Signal 1: Cosine similarity of sentence to query
-            sentence_embedding = self.embedder.embed_query(sentence_text)
-            sim = float(np.dot(sentence_embedding.flatten(), query_embedding.flatten()))
+            sentence_embedding = item["embedding"]
+            
+            # Signal 1: Cosine similarity of sentence to query via dot product (vectors are normalized)
+            sim = float(np.dot(sentence_embedding, query_vec))
             
             # Signal 2: Word overlap
             sent_words = set(sentence_text.lower().strip().split())
@@ -177,7 +203,7 @@ class ExtractiveGenerator:
         extracted_text = re.sub(r'\s+', ' ', extracted_text).strip()
         
         # Get source metadata from top chunk
-        primary_source = results[0].get("source_url", "upsdm.gov.in")
+        primary_source = valid_results[0].get("source_url", "upsdm.gov.in")
         source_display = primary_source.replace("https://www.", "").replace("https://", "").replace("http://", "")
         
         answer = f"According to official UPSDM guidelines from {source_display}:\n{extracted_text}\n\n(Source: {source_display})"

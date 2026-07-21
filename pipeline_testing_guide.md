@@ -335,9 +335,10 @@ You can also issue custom HTTP requests using tools like Postman, Thunder Client
 
 ---
 
-## 🔄 Step 9: Rebuilding the FAISS Vector Index (Optional)
+## 🔄 Step 9: Rebuilding the FAISS Vector Index & Sentence Embeddings
 
-If you modify raw files or ingest supplements, rebuild the vectorized FAISS index manually.
+> [!IMPORTANT]
+> Whenever you modify raw files, ingest supplements, or change chunk contents, `build_index.py` **must** be re-run. In addition to building the main FAISS chunk index (`index.bin`), `build_index.py` precomputes sentence-level embeddings (`sentence_embeddings.npz` and `sentence_metadata.json`) used by `ExtractiveGenerator` (Stage 5) to eliminate live query-time sentence re-embedding latency.
 
 * **macOS / Linux**:
   ```bash
@@ -351,4 +352,4 @@ If you modify raw files or ingest supplements, rebuild the vectorized FAISS inde
   ```cmd
   .venv\Scripts\python scripts/build_index.py
   ```
-2. The script reads raw document chunks from [data/chunks.jsonl](file:///Users/ommakhija/Downloads/kaushal%20dost/Kaushal-Dost---RAG-Chatbot/data/chunks.jsonl), generates new E5 embeddings, constructs a new FAISS vector space, and saves the binary files inside [data/faiss_index/](file:///Users/ommakhija/Downloads/kaushal%20dost/Kaushal-Dost---RAG-Chatbot/data/faiss_index/).
+2. The script reads raw document chunks from [data/chunks.jsonl](file:///Users/ommakhija/Downloads/kaushal%20dost/Kaushal-Dost---RAG-Chatbot/data/chunks.jsonl), generates E5 embeddings for both chunks and individual sentences, constructs a new FAISS vector space, and saves all index files inside [data/faiss_index/](file:///Users/ommakhija/Downloads/kaushal%20dost/Kaushal-Dost---RAG-Chatbot/data/faiss_index/).

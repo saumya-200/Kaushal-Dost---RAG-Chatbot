@@ -1,10 +1,14 @@
 import hashlib
 import re
+import unicodedata
 from datetime import datetime, timezone
 import logging
 from src.config import load_config
 
 logger = logging.getLogger(__name__)
+
+# Denylist patterns for administrative lists (e.g. blacklisted or de-empanelled TPs)
+ADMINISTRATIVE_PATTERNS = ["blacklist", "de-empanelled", "deempanelled", "de_empanelled"]
 
 class Chunker:
     def __init__(self):
@@ -12,6 +16,19 @@ class Chunker:
         self.chunk_size = config.chunking_config.get('chunk_size_tokens', 500)
         self.overlap = config.chunking_config.get('chunk_overlap_tokens', 50)
         
+    def _clean_text(self, text: str) -> str:
+        """Applies NFKC ligature normalization and strips markdown/HTML links."""
+        if not text:
+            return ""
+        # Normalize PDF ligatures (e.g. fi -> fi, fl -> fl)
+        text = unicodedata.normalize('NFKC', text)
+        # Strip Markdown links [text](url) -> text
+        text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)
+        # Strip HTML <a> tags -> inner text
+        text = re.sub(r'<a\b[^>]*>(.*?)</a>', r'\1', text, flags=re.IGNORECASE)
+        text = re.sub(r'</?a\b[^>]*>', '', text, flags=re.IGNORECASE)
+        return text
+
     def chunk_text(self, text: str, url: str, content_type: str, language: str) -> list[dict]:
         """
         Splits text into chunks and adds metadata.
@@ -20,6 +37,9 @@ class Chunker:
         if not text or len(text.strip()) == 0:
             return []
             
+        # Clean text: normalize ligatures & strip links
+        text = self._clean_text(text)
+        
         # Basic normalization
         text = re.sub(r'\n{3,}', '\n\n', text)
         
@@ -92,12 +112,20 @@ class Chunker:
             if current_chunk_words:
                 save_chunk(current_chunk_words)
             
+        # Determine chunk content_type metadata tag
+        url_lower = url.lower()
+        if any(pat in url_lower for pat in ADMINISTRATIVE_PATTERNS):
+            chunk_content_type = "administrative_list"
+        else:
+            chunk_content_type = "content"
+
         # Format chunks as dicts with metadata
         source_id = url.replace('https://', '').replace('http://', '').strip('/')
         now = datetime.now(timezone.utc).isoformat()
         
         formatted_chunks = []
         for i, chunk_text in enumerate(chunks):
+            chunk_text = self._clean_text(chunk_text)
             # Extract a rough title from the URL path or first line
             title = url.split('/')[-1] if '/' in url else source_id
             if not title or title.lower() in ['index', 'home']:
@@ -110,7 +138,7 @@ class Chunker:
                 "text": chunk_text,
                 "hash_sha256": self.compute_hash(chunk_text),
                 "language": language,
-                "content_type": content_type,
+                "content_type": chunk_content_type,
                 "chunk_index": i,
                 "total_chunks": len(chunks),
                 "last_crawled": now,

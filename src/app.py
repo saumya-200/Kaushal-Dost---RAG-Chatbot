@@ -82,6 +82,8 @@ async def chat_endpoint(request: ChatRequest):
         if "detected_intent" in metadata:
             routing_details["detected_intent"] = metadata["detected_intent"]
             routing_details["intent_score"] = metadata.get("intent_score")
+        if "detected_location" in metadata:
+            routing_details["detected_location"] = metadata["detected_location"]
         if "static_intent" in metadata:
             routing_details["static_intent"] = metadata["static_intent"]
         if "scope_score" in metadata:
@@ -126,4 +128,4 @@ async def chat_endpoint(request: ChatRequest):
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "model": router.generator.primary_model}
+    return {"status": "healthy", "model": "cpu-extractive-pipeline"}

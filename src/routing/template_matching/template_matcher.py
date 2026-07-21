@@ -166,16 +166,48 @@ class TemplateMatcher:
             score_diff = top_score - runner_up_score
             
             if score_diff < self.ambiguity_margin:
-                logger.warning(f"Ambiguity detected: top score={top_score:.4f} "
-                               f"('{top_match['entry'].get('intent')}') vs runner-up score={runner_up_score:.4f} "
-                               f"('{runner_up['entry'].get('intent')}')")
-                return "ambiguous", "", {
-                    "top_match_intent": top_match["entry"].get("intent"),
-                    "runner_up_intent": runner_up["entry"].get("intent"),
-                    "score_diff": score_diff,
-                    "top_score": top_score,
-                    "runner_up_score": runner_up_score
-                }
+                top_persona = top_match["entry"].get("persona", "")
+                runner_persona = runner_up["entry"].get("persona", "")
+                
+                # Same-Persona Intent Tie-Breaker:
+                # When candidates belong to the same persona family and score diff is within margin,
+                # use Process/Locator intent match as a tie-breaker before returning ambiguous.
+                same_persona = (top_persona == runner_persona) or (
+                    top_persona in (detected_persona, "General Public") and runner_persona in (detected_persona, "General Public")
+                )
+                
+                top_intent = top_match["entry"].get("intent", "")
+                runner_intent = runner_up["entry"].get("intent", "")
+                
+                intent_tiebreaker = False
+                if same_persona and detected_intent in ("Process", "Locator"):
+                    if top_intent == detected_intent and runner_intent != detected_intent:
+                        intent_tiebreaker = True
+                        logger.info(f"Same-persona intent tie-breaker applied ({top_persona}): "
+                                    f"top intent '{top_intent}' matches detected_intent '{detected_intent}' over '{runner_intent}'")
+                    elif runner_intent == detected_intent and top_intent != detected_intent:
+                        candidate_scores[0], candidate_scores[1] = candidate_scores[1], candidate_scores[0]
+                        top_match = candidate_scores[0]
+                        top_score = top_match["score"]
+                        intent_tiebreaker = True
+                        logger.info(f"Same-persona intent tie-breaker applied ({runner_persona}): "
+                                    f"swapped runner-up '{runner_intent}' matching detected_intent '{detected_intent}'")
+                
+                if not intent_tiebreaker:
+                    logger.warning(f"Ambiguity detected: top score={top_score:.4f} "
+                                   f"('{top_match['entry'].get('intent')}') vs runner-up score={runner_up_score:.4f} "
+                                   f"('{runner_up['entry'].get('intent')}')")
+                    return "ambiguous", "", {
+                        "top_match_intent": top_match["entry"].get("intent"),
+                        "runner_up_intent": runner_up["entry"].get("intent"),
+                        "score_diff": score_diff,
+                        "top_score": top_score,
+                        "runner_up_score": runner_up_score,
+                        "top_answer": top_match["entry"].get("answer", ""),
+                        "runner_up_answer": runner_up["entry"].get("answer", ""),
+                        "top_answer_hi": top_match["entry"].get("answer_hi", ""),
+                        "runner_up_answer_hi": runner_up["entry"].get("answer_hi", "")
+                    }
                 
         # Check Fail-Closed Threshold
         if top_score < self.template_threshold:

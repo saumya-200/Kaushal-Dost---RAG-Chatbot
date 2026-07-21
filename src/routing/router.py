@@ -44,7 +44,7 @@ class Router:
         self.persona_classifier = PersonaClassifier(self.embedder)
         self.intent_classifier = IntentClassifier(self.embedder)
         self.template_matcher = TemplateMatcher(self.embedder)
-        self.extractive_generator = ExtractiveGenerator(self.embedder)
+        self.extractive_generator = ExtractiveGenerator(self.embedder, self.faiss_index)
         self.sanitizer = ResponseSanitizer()
         self.scope_detector = ScopeDetector()
         
@@ -294,8 +294,11 @@ class Router:
         metadata["persona_score"] = persona_score
         
         detected_intent, intent_score = self.intent_classifier.classify(query, q_emb, detected_persona)
+        detected_location = self.intent_classifier.detect_location(query)
         metadata["detected_intent"] = detected_intent
         metadata["intent_score"] = intent_score
+        if detected_location:
+            metadata["detected_location"] = detected_location
         
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # STAGE 4: Multi-Signal Template Matcher
@@ -318,7 +321,23 @@ class Router:
             return "static_lookup", response, metadata
             
         elif status == "ambiguous":
-            response = self._get_policy_response("ambiguous_match", lang)
+            top_ans = match_meta.get("top_answer", "").strip()
+            runner_ans = match_meta.get("runner_up_answer", "").strip()
+            if lang == "hi":
+                top_ans = match_meta.get("top_answer_hi", "").strip() or top_ans
+                runner_ans = match_meta.get("runner_up_answer_hi", "").strip() or runner_ans
+                
+            top_short = top_ans.split('.')[0].strip() if top_ans else ""
+            runner_short = runner_ans.split('.')[0].strip() if runner_ans else ""
+            
+            if top_short and runner_short:
+                if lang == "hi":
+                    response = f"मुझे आपके प्रश्न से मिलते-जुलते विषय मिले हैं: (1) {top_short} (2) {runner_short}। कृपया स्पष्ट करें कि आप किस विषय के बारे में पूछना चाहते हैं।"
+                else:
+                    response = f"I found a couple of topics that might match your question: (1) {top_short} (2) {runner_short}. Which one are you asking about?"
+            else:
+                response = self._get_policy_response("ambiguous_match", lang)
+                
             response = self.sanitizer.sanitize(response)
             latency_ms = round((time.time() - t_start) * 1000, 2)
             metadata["stage_latency_ms"] = latency_ms
@@ -333,14 +352,15 @@ class Router:
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # STAGE 5: FAISS Retrieval & Extractive answer
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # Check retrieval confidence
-        ret_level, ret_score, ret_signals = self.extractive_generator.compute_retrieval_confidence(results)
+        # Exclude administrative_list chunks from FAISS_DIRECT retrieval candidates
+        valid_results = [r for r in results if r.get("content_type") != "administrative_list"]
+        ret_level, ret_score, ret_signals = self.extractive_generator.compute_retrieval_confidence(valid_results)
         metadata["confidence_level"] = ret_level
         metadata["confidence_score"] = ret_score
         metadata["confidence_signals"] = ret_signals
         
         if ret_level == "HIGH":
-            extractive_answer = self.extractive_generator.generate_extractive_answer(query, q_emb, results)
+            extractive_answer = self.extractive_generator.generate_extractive_answer(query, q_emb, valid_results)
             if extractive_answer:
                 response = self.sanitizer.sanitize(extractive_answer)
                 self.add_to_cache(query, q_emb, response, "faiss_direct", test_id=test_id)

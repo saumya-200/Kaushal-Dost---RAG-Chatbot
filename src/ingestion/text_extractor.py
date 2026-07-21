@@ -22,8 +22,8 @@ class TextExtractor:
             logger.warning(f"Failed to check Tesseract languages: {e}")
             self.has_hindi_ocr = False
 
-    def extract_html(self, html: str, url: str) -> str:
-        """Extract main text from HTML using trafilatura and append links/buttons."""
+    def extract_html(self, html: str, url: str) -> dict:
+        """Extract main text from HTML using trafilatura and store nav elements separately."""
         try:
             # Trafilatura does an excellent job of removing boilerplates (nav, footer, etc)
             text = trafilatura.extract(html, url=url, include_links=True, include_images=False, include_tables=True)
@@ -57,24 +57,21 @@ class TextExtractor:
                 if val:
                     action_elements.append(f"- Action Button: \"{val}\"")
             
+            unique_actions = []
             if action_elements:
-                unique_actions = []
                 seen = set()
                 for act in action_elements:
                     if act not in seen:
                         seen.add(act)
                         unique_actions.append(act)
                 
-                actions_text = "\nAvailable links and buttons on this page:\n" + "\n".join(unique_actions)
-                if text:
-                    text = actions_text + "\n\n" + text
-                else:
-                    text = actions_text
-                    
-            return text.strip()
+            return {
+                "text": text.strip(),
+                "nav_elements": unique_actions
+            }
         except Exception as e:
             logger.error(f"Error extracting HTML from {url}: {e}")
-            return ""
+            return {"text": "", "nav_elements": []}
 
     def extract_pdf(self, pdf_bytes: bytes, url: str) -> tuple[str, str]:
         """
