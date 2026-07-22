@@ -55,7 +55,7 @@ class PersonaClassifier:
         # Strong overrides (if query contains these words, strongly bias persona)
         self.strong_rules = {
             "Training Partner": {"empanelment", "empanelled", "tp grading", "de-empanelled", "smart portal"},
-            "Industrial Partner": {"csr funding", "placement partner", "placement partnership"},
+            "Industrial Partner": {"csr funding", "placement partner", "placement partnership", "customize curriculum", "training curriculum", "curriculum customization", "customize the training curriculum"},
             "Assessment Agency": {"assessment agency", "evaluator guidelines"}
         }
 

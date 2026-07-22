@@ -85,3 +85,59 @@ def test_extractive_generator_fallback_on_missing_chunk_id():
     assert "UPSDM is Uttar Pradesh Skill Development Mission." in answer
     # Assert fallback live encoding was called for the missing chunk
     assert mock_embedder.embed_query.call_count > 0
+
+
+def test_extractive_generator_truncation():
+    # Test boundary-aware truncation on long chunks
+    mock_embedder = MagicMock(spec=Embedder)
+    mock_faiss_index = MagicMock(spec=FAISSIndex)
+    
+    chunk_id = "long_chunk_001"
+    # Construct sentences that exceed 500 characters
+    long_sentences = [
+        "First sentence is here and it is short.",
+        "Second sentence is also here and contains a good amount of words.",
+        "Third sentence is very long and has a lot of words to exceed the character limit of five hundred characters in total. " * 3,
+        "Fourth sentence is the final one."
+    ]
+    
+    # Mock precomputed sentences
+    mock_faiss_index.get_sentences_for_chunks.return_value = (
+        [
+            {
+                "text": s,
+                "chunk_id": chunk_id,
+                "sentence_index": idx,
+                "embedding": np.ones((384,), dtype=np.float32) / np.sqrt(384)
+            }
+            for idx, s in enumerate(long_sentences)
+        ],
+        []
+    )
+    
+    generator = ExtractiveGenerator(embedder=mock_embedder, faiss_index=mock_faiss_index)
+    
+    query = "test query"
+    query_emb = np.ones((1, 384), dtype=np.float32) / np.sqrt(384)
+    
+    results = [
+        {
+            "chunk_id": chunk_id,
+            "source_url": "https://upsdm.gov.in/About",
+            "text": " ".join(long_sentences),
+            "score": 0.95,
+            "content_type": "content"
+        }
+    ]
+    
+    answer = generator.generate_extractive_answer(query, query_emb, results)
+    
+    # Assert answer is under 500 characters
+    assert len(answer) <= 500
+    # Assert it ends cleanly (should end with the source suffix)
+    assert answer.endswith("(Source: upsdm.gov.in/About)")
+    
+    # Strip suffix and prefix to check truncation boundary
+    extracted_part = answer.replace("According to official UPSDM guidelines from upsdm.gov.in/About:\n", "").replace("\n\n(Source: upsdm.gov.in/About)", "")
+    assert extracted_part[-1] in ['.', '!', '?', '।'] or not extracted_part[-1].isalnum()
+

@@ -57,7 +57,7 @@ class IntentClassifier:
                 "Placement Partnership": {"placement partner", "placement partnership", "mou", "tie up", "companies collaborate"},
                 "CSR": {"csr", "corporate social responsibility", "funding", "csr project"},
                 "Hiring": {"hiring", "recruitment", "employer registration", "recruit candidates", "jobs", "need candidates"},
-                "Skill Development": {"skill development", "skilling initiative", "corporate training", "upskill"},
+                "Skill Development": {"skill development", "skilling initiative", "corporate training", "upskill", "customize curriculum", "training curriculum", "curriculum customization", "customize the training curriculum"},
                 "Locator": {"locator", "location", "center", "centre", "training center", "training centre", "locate", "district"},
                 "Process": {"process", "empanelment process", "partnership process", "procedure", "how to partner", "registration process", "mou process", "reimbursement", "empanelment", "claim", "claims", "प्रक्रिया"}
             },

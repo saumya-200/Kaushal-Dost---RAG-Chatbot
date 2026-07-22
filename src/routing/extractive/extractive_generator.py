@@ -106,6 +106,53 @@ class ExtractiveGenerator:
         """Splits English and Hindi paragraphs into sentences using shared splitter."""
         return split_into_sentences(text)
 
+    def _is_toc_or_index(self, text: str) -> bool:
+        """Determines if a sentence is part of a Table of Contents, Index, or list of de-empanelled partners."""
+        text_lower = text.lower().strip()
+        
+        # 1. Contains dot leaders (multiple dots, e.g. "...")
+        if re.search(r'\.\.\.|…', text):
+            return True
+        
+        # 2. Contains sequences of section numbers and page numbers (high digit ratio)
+        digit_count = sum(1 for c in text if c.isdigit())
+        if len(text) > 0:
+            digit_ratio = digit_count / len(text)
+            if digit_ratio > 0.15 and digit_count > 5:
+                return True
+                
+        # 3. Specific table of contents / administrative header phrases
+        toc_headers = [
+            "table of contents",
+            "abbreviations and acronyms",
+            "glossary",
+            "annexure 1:",
+            "annexure 2:",
+            "annexure a :",
+            "annexure b :",
+            "index of",
+            "page number",
+            "serial no.",
+            "s. no.",
+            "tp name",
+            "tp type",
+            "de-empanelled",
+            "debarred",
+            "blacklisted"
+        ]
+        for header in toc_headers:
+            if header in text_lower:
+                return True
+                
+        # 4. Check if the sentence has too many number-like tokens (e.g. "1", "1.1", "2")
+        tokens = text_lower.split()
+        if tokens:
+            num_tokens = sum(1 for t in tokens if re.match(r'^\d+(\.\d+)*$', t))
+            if num_tokens / len(tokens) > 0.25 and len(tokens) > 4:
+                return True
+                
+        return False
+
     def generate_extractive_answer(self, query: str, query_embedding: np.ndarray, results: list[dict]) -> str:
         """
         Extracts and joins the most relevant sentences from the top FAISS chunks.
@@ -133,6 +180,8 @@ class ExtractiveGenerator:
                 sentences = split_into_sentences(chunk_text)
                 for s in sentences:
                     s_normalized = s.lower().strip()
+                    if self._is_toc_or_index(s):
+                        continue
                     if s_normalized not in seen_sentences:
                         seen_sentences.add(s_normalized)
                         emb = self.embedder.embed_query(s) # live encoding fallback
@@ -148,6 +197,8 @@ class ExtractiveGenerator:
                 for s in chunk_sents:
                     s_text = s["text"]
                     s_normalized = s_text.lower().strip()
+                    if self._is_toc_or_index(s_text):
+                        continue
                     if s_normalized not in seen_sentences:
                         seen_sentences.add(s_normalized)
                         all_sentences.append({
@@ -194,9 +245,6 @@ class ExtractiveGenerator:
         if not selected_items:
             selected_items = all_sentences[:2]
             
-        # Sort by chunk_index to maintain reading flow/narrative of the source text
-        selected_items.sort(key=lambda x: (x["chunk_index"], all_sentences.index(x)))
-        
         extracted_text = " ".join([item["text"] for item in selected_items])
         
         # Clean formatting
@@ -206,5 +254,32 @@ class ExtractiveGenerator:
         primary_source = valid_results[0].get("source_url", "upsdm.gov.in")
         source_display = primary_source.replace("https://www.", "").replace("https://", "").replace("http://", "")
         
-        answer = f"According to official UPSDM guidelines from {source_display}:\n{extracted_text}\n\n(Source: {source_display})"
+        # Define limits to ensure final answer stays under 500 characters
+        prefix = f"According to official UPSDM guidelines from {source_display}:\n"
+        suffix = f"\n\n(Source: {source_display})"
+        max_extracted_len = 500 - len(prefix) - len(suffix)
+        
+        if len(extracted_text) > max_extracted_len:
+            # Cut at last complete sentence boundary before max_extracted_len
+            truncated = extracted_text[:max_extracted_len]
+            last_sentence_end = -1
+            for end_char in ['. ', '! ', '? ', '। ']:
+                pos = truncated.rfind(end_char)
+                if pos > last_sentence_end:
+                    last_sentence_end = pos + 1  # include punctuation
+                    
+            if truncated and truncated[-1] in ['.', '!', '?', '।']:
+                last_sentence_end = len(truncated)
+                
+            if last_sentence_end > 150:
+                extracted_text = truncated[:last_sentence_end].strip()
+            else:
+                # Fallback: Truncate at last complete word boundary
+                last_space = truncated.rfind(' ')
+                if last_space > 0:
+                    extracted_text = truncated[:last_space].strip()
+                else:
+                    extracted_text = truncated
+        
+        answer = f"{prefix}{extracted_text}{suffix}"
         return answer

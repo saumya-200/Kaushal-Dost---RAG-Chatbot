@@ -179,6 +179,33 @@ entries:
       - "प्लेसमेंट पार्टनर"
       - "प्लेसमेंट"
 
+  - intent: "Placement Partnership"
+    persona: "Industrial Partner"
+    answer: "The Flexi MoU is a scheme under UPSDM that allows flexible partnership agreements for skill development between industry and the mission."
+    answer_hi: "फ्लेक्सी एमओयू (Flexi MoU) यूपीएसडीएम (UPSDM) के तहत एक योजना है जो उद्योग और मिशन के बीच कौशल विकास के लिए लचीले साझेदारी समझौतों की अनुमति देती है।"
+    aliases:
+      - "flexi mou"
+      - "flexi mou scheme"
+      - "what is the flexi mou scheme"
+      - "what is flexi mou"
+      - "mou scheme"
+      - "flexible partnership"
+      - "फ्लेक्सी एमओयू"
+
+  - intent: "Skill Development"
+    persona: "Industrial Partner"
+    answer: "Training courses follow NSQF standards. Industry partners can work with Sector Skill Councils (SSC) to influence curriculum relevant to their sector."
+    answer_hi: "प्रशिक्षण पाठ्यक्रम एनएसक्यूएफ (NSQF) मानकों का पालन करते हैं। उद्योग भागीदार अपने क्षेत्र से संबंधित पाठ्यक्रम को प्रभावित करने के लिए सेक्टर स्किल काउंसिल (SSC) के साथ काम कर सकते हैं।"
+    aliases:
+      - "customize curriculum"
+      - "customize the training curriculum"
+      - "can we customize the training curriculum"
+      - "curriculum customization"
+      - "sector skill councils"
+      - "ssc curriculum"
+      - "influence curriculum"
+      - "पाठ्यक्रम अनुकूलन"
+
   - intent: "Enroll"
     persona: "Student"
     answer: "UPSDM offers both Traditional and Futuristic job role courses across multiple sectors. To see the full list, visit upsdm.gov.in and click on 'Course Details' in the navigation menu."

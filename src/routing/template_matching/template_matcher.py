@@ -159,7 +159,12 @@ class TemplateMatcher:
         top_match = candidate_scores[0]
         top_score = top_match["score"]
         
-        # Check Ambiguity
+        # Check Fail-Closed Threshold first
+        if top_score < self.template_threshold:
+            logger.info(f"TemplateMatch low confidence: score={top_score:.4f} < threshold={self.template_threshold}")
+            return "low_confidence", "", {"top_score": top_score, "intent_matched": top_match["entry"].get("intent")}
+            
+        # Check Ambiguity only for high-confidence matches
         if len(candidate_scores) >= 2:
             runner_up = candidate_scores[1]
             runner_up_score = runner_up["score"]
@@ -208,11 +213,6 @@ class TemplateMatcher:
                         "top_answer_hi": top_match["entry"].get("answer_hi", ""),
                         "runner_up_answer_hi": runner_up["entry"].get("answer_hi", "")
                     }
-                
-        # Check Fail-Closed Threshold
-        if top_score < self.template_threshold:
-            logger.info(f"TemplateMatch low confidence: score={top_score:.4f} < threshold={self.template_threshold}")
-            return "low_confidence", "", {"top_score": top_score, "intent_matched": top_match["entry"].get("intent")}
             
         # Success matching! Get the answer in the correct language
         entry = top_match["entry"]

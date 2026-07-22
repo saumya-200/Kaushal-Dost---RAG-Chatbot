@@ -354,6 +354,21 @@ class Router:
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # Exclude administrative_list chunks from FAISS_DIRECT retrieval candidates
         valid_results = [r for r in results if r.get("content_type") != "administrative_list"]
+        
+        # If intent is Eligibility, expand the retrieval results with general eligibility chunks
+        if detected_intent == "Eligibility":
+            try:
+                elig_emb = self.embedder.embed_query("UPSDM scheme eligibility criteria age limit 14-35 target women minorities")
+                elig_results = self.faiss_index.search(elig_emb, top_k=3)
+                seen_ids = {r["chunk_id"] for r in valid_results}
+                for r in elig_results:
+                    if r["chunk_id"] not in seen_ids and r.get("content_type") != "administrative_list":
+                        valid_results.append(r)
+                # Sort by score descending so that eligibility-focused chunks end up at the top
+                valid_results.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+            except Exception as e:
+                logger.warning(f"Failed to perform eligibility query expansion: {e}")
+
         ret_level, ret_score, ret_signals = self.extractive_generator.compute_retrieval_confidence(valid_results)
         metadata["confidence_level"] = ret_level
         metadata["confidence_score"] = ret_score

@@ -129,3 +129,47 @@ async def test_confidence_threshold_routing(router):
                 stage, response, meta = await router.route("completely irrelevant queries")
                 assert stage == "fallback"
                 assert "locate" in response
+
+
+@pytest.mark.asyncio
+async def test_regression_kaushal_drishti_definition(router):
+    if router.use_cache:
+        router.redis_client.flushdb()
+    router.cached_queries = []
+    router.cached_embeddings = []
+    stage, response, meta = await router.route("What is Kaushal Drishti?")
+    assert stage == "faiss_direct"
+    assert "portal" in response.lower() or "candidate" in response.lower() or "registration" in response.lower() or "tracking" in response.lower()
+    assert "table of contents" not in response.lower()
+
+
+@pytest.mark.asyncio
+async def test_regression_pmkvy_eligibility_criteria(router):
+    if router.use_cache:
+        router.redis_client.flushdb()
+    router.cached_queries = []
+    router.cached_embeddings = []
+    stage, response, meta = await router.route("What are the eligibility criteria for the PMKVY scheme?")
+    assert stage == "faiss_direct"
+    
+    expected_terms = ["14-35", "nsqf", "30%", "women", "minorities"]
+    matches = sum(1 for term in expected_terms if term in response.lower())
+    assert matches >= 2
+    assert "steering committee" not in response.lower()
+    assert "approval" not in response.lower()
+
+
+@pytest.mark.asyncio
+async def test_flexi_mou_template_matching(router):
+    stage, response, meta = await router.route("What is the Flexi MoU scheme?")
+    assert stage == "static_lookup"
+    assert "flexible partnership agreements" in response.lower() or "flexi mou is a scheme" in response.lower()
+    assert "companies can collaborate" not in response.lower()
+
+
+@pytest.mark.asyncio
+async def test_curriculum_customization_template_matching(router):
+    stage, response, meta = await router.route("Can we customize the training curriculum for our industry needs?")
+    assert stage == "static_lookup"
+    assert "sector skill councils" in response.lower() or "nsqf standards" in response.lower()
+

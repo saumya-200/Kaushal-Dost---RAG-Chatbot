@@ -148,7 +148,7 @@ def print_result(category, idx, question, expected, stage, latency_ms, actual_an
         print(f"    {line}")
     print(f"  {'─' * 76}")
     print(f"  ACTUAL ANSWER:")
-    for line in _wrap_text(actual_answer[:500], 74):
+    for line in _wrap_text(actual_answer, 74):
         print(f"    {line}")
     print(f"  {'─' * 76}")
 

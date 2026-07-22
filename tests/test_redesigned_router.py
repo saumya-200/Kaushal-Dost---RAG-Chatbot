@@ -74,22 +74,23 @@ def test_template_matcher(router):
         {"intent": "Registration", "persona": "Training Partner", "answer": "TP registration details.", "aliases": ["register"]},
         {"intent": "Enroll", "persona": "Student", "answer": "Student registration details.", "aliases": ["register"]}
     ]):
-        matcher.template_embeddings = []
-        for entry in matcher.entries:
-            for alias in entry.get("aliases", []):
-                norm_alias = matcher._normalize(alias)
-                emb = matcher.embedder.embed_query(alias)
-                matcher.template_embeddings.append({
-                    "entry": entry,
-                    "alias": alias,
-                    "norm_alias": norm_alias,
-                    "embedding": emb.flatten()
-                })
-        # Match using same alias to force equal score
-        q_amb = "register"
-        q_emb_amb = matcher.embedder.embed_query(q_amb)
-        status_amb, _, _ = matcher.match(q_amb, q_emb_amb, "Unknown", "General", "en")
-        assert status_amb == "ambiguous"
+        with patch.object(matcher, "template_threshold", 0.10):
+            matcher.template_embeddings = []
+            for entry in matcher.entries:
+                for alias in entry.get("aliases", []):
+                    norm_alias = matcher._normalize(alias)
+                    emb = matcher.embedder.embed_query(alias)
+                    matcher.template_embeddings.append({
+                        "entry": entry,
+                        "alias": alias,
+                        "norm_alias": norm_alias,
+                        "embedding": emb.flatten()
+                    })
+            # Match using same alias to force equal score
+            q_amb = "register"
+            q_emb_amb = matcher.embedder.embed_query(q_amb)
+            status_amb, _, _ = matcher.match(q_amb, q_emb_amb, "Unknown", "General", "en")
+            assert status_amb == "ambiguous"
 
 def test_extractive_generator(router):
     generator = ExtractiveGenerator(router.embedder)
